@@ -1,0 +1,62 @@
+[
+  {
+    "id": 1,
+    "title": "VPN Setup Guide",
+    "content": "To set up VPN, download the company VPN client and log in using your SSO credentials. If you have issues connecting, ensure your internet connection is stable and try restarting the client.",
+    "category": "remote_work"
+  },
+  {
+    "id": 2,
+    "title": "Remote Work Policy",
+    "content": "Employees are allowed to work remotely up to 3 days per week. All remote work must be approved by your manager. Ensure you have a stable internet connection and proper home office setup.",
+    "category": "policy"
+  },
+  {
+    "id": 3,
+    "title": "Password Reset Procedure",
+    "content": "To reset your password, visit the company portal at portal.company.com and click on 'Forgot Password'. Follow the instructions sent to your recovery email.",
+    "category": "account"
+  },
+  {
+    "id": 4,
+    "title": "Printer Setup Guide",
+    "content": "To set up a network printer, go to Settings > Devices > Printers & scanners > Add a printer. Select your printer from the list or add it manually using the IP address provided by IT.",
+    "category": "hardware"
+  },
+  {
+    "id": 5,
+    "title": "Email Signature Policy",
+    "content": "All employees must use the standard company email signature template. This includes your full name, position, department, company logo, and contact information.",
+    "category": "policy"
+  },
+  {
+    "id": 6,
+    "title": "Software Request Process",
+    "content": "To request new software, submit a ticket through the support portal with the software name, purpose, and business justification. All requests require manager approval.",
+    "category": "software"
+  },
+  {
+    "id": 7,
+    "title": "Data Security Guidelines",
+    "content": "Always encrypt sensitive data before sharing. Use the company-approved file sharing solutions for all work-related transfers. Never share credentials via email or messaging apps.",
+    "category": "security"
+  },
+  {
+    "id": 8,
+    "title": "Backup Procedures",
+    "content": "Save all important documents to your department's shared drive, which is backed up nightly. Local files are not backed up automatically. Use the company cloud storage for additional redundancy.",
+    "category": "data"
+  },
+  {
+    "id": 9,
+    "title": "New Hire Equipment Policy",
+    "content": "New employees receive a standard laptop, monitor, keyboard, and mouse. Additional equipment requests must be submitted through the IT portal and approved by your department head.",
+    "category": "policy"
+  },
+  {
+    "id": 10,
+    "title": "IT Support Hours",
+    "content": "The IT support desk is available Monday-Friday from 8:00 AM to 6:00 PM. For after-hours emergency support, call the on-call number provided in your emergency contact list.",
+    "category": "support"
+  }
+]
