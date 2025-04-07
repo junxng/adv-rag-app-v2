@@ -263,25 +263,40 @@ class S3Service:
             bool: True if successful, False otherwise
         """
         try:
-            # Check if bucket already exists
-            response = self.s3.list_buckets()
-            existing_buckets = [bucket['Name'] for bucket in response['Buckets']]
-            
-            if bucket_name not in existing_buckets:
-                # Create the bucket
-                if AWS_REGION == 'us-east-1':
-                    self.s3.create_bucket(
-                        Bucket=bucket_name
-                    )
+            # First, try to check if bucket exists by attempting to use it
+            # This avoids needing to list all buckets (which requires additional permissions)
+            try:
+                self.s3.head_bucket(Bucket=bucket_name)
+                logger.info(f"Bucket {bucket_name} already exists")
+                return True
+            except ClientError as e:
+                # If we get a 404, the bucket doesn't exist
+                # If we get a 403, the bucket exists but we don't have access or it belongs to someone else
+                error_code = int(e.response['Error']['Code'])
+                if error_code == 404:
+                    # Bucket doesn't exist, so create it
+                    logger.info(f"Bucket {bucket_name} doesn't exist, creating it")
+                elif error_code == 403:
+                    # Bucket exists but belongs to another account or we don't have access
+                    logger.warning(f"Bucket {bucket_name} exists but you don't have access to it")
+                    return False
                 else:
-                    self.s3.create_bucket(
-                        Bucket=bucket_name,
-                        CreateBucketConfiguration={
-                            'LocationConstraint': AWS_REGION
-                        }
-                    )
-                logger.info(f"Bucket {bucket_name} created successfully")
+                    # Some other error
+                    raise
             
+            # Create the bucket
+            if AWS_REGION == 'us-east-1':
+                self.s3.create_bucket(
+                    Bucket=bucket_name
+                )
+            else:
+                self.s3.create_bucket(
+                    Bucket=bucket_name,
+                    CreateBucketConfiguration={
+                        'LocationConstraint': AWS_REGION
+                    }
+                )
+            logger.info(f"Bucket {bucket_name} created successfully")
             return True
             
         except ClientError as e:

@@ -14,6 +14,32 @@ S3_DOCUMENT_BUCKET = os.environ.get("S3_DOCUMENT_BUCKET", "tech-support-document
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg', 'gif'}
 MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB
 
+# Global flag to track S3 availability
+s3_available = False
+
+def init_s3_bucket():
+    """
+    Initialize the S3 bucket for document storage.
+    This should be called when the application starts.
+    """
+    global s3_available
+    
+    try:
+        logger.info(f"Initializing S3 bucket: {S3_DOCUMENT_BUCKET}")
+        s3_service = S3Service()
+        success = s3_service.create_bucket_if_not_exists(S3_DOCUMENT_BUCKET)
+        if success:
+            logger.info(f"S3 bucket initialized successfully: {S3_DOCUMENT_BUCKET}")
+            s3_available = True
+        else:
+            logger.warning(f"S3 bucket not available: {S3_DOCUMENT_BUCKET}")
+            logger.warning("Document storage will be disabled. Please check AWS credentials and permissions.")
+            s3_available = False
+    except Exception as e:
+        logger.error(f"Error initializing S3 bucket: {str(e)}")
+        logger.warning("Document storage will be disabled. Please check AWS credentials and permissions.")
+        s3_available = False
+
 def allowed_file(filename):
     """
     Check if a filename has an allowed extension.
@@ -63,6 +89,12 @@ def upload_document(file_storage, user_id, ticket_id=None, is_public=False):
     Returns:
         Document: The created Document object or None if upload fails
     """
+    # Check if S3 is available
+    global s3_available
+    if not s3_available:
+        logger.error("S3 storage is not available. Document upload is disabled.")
+        return None
+    
     s3_service = None
     s3_key = None
     document = None
@@ -92,9 +124,6 @@ def upload_document(file_storage, user_id, ticket_id=None, is_public=False):
         # Create S3 key
         original_filename = file_storage.filename
         s3_key = create_s3_key(user_id, ticket_id, original_filename)
-        
-        # Create bucket if it doesn't exist
-        s3_service.create_bucket_if_not_exists(S3_DOCUMENT_BUCKET)
         
         # Upload file to S3
         content_type = file_storage.content_type or 'application/octet-stream'
@@ -152,6 +181,12 @@ def upload_document_from_string(content, filename, user_id, ticket_id=None, is_p
     Returns:
         Document: The created Document object or None if upload fails
     """
+    # Check if S3 is available
+    global s3_available
+    if not s3_available:
+        logger.error("S3 storage is not available. Document upload is disabled.")
+        return None
+    
     s3_service = None
     s3_key = None
     document = None
@@ -176,9 +211,6 @@ def upload_document_from_string(content, filename, user_id, ticket_id=None, is_p
             
         # Create S3 key
         s3_key = create_s3_key(user_id, ticket_id, filename)
-        
-        # Create bucket if it doesn't exist
-        s3_service.create_bucket_if_not_exists(S3_DOCUMENT_BUCKET)
         
         # Upload file to S3
         if content_type is None:
@@ -276,6 +308,12 @@ def delete_document(document_id, user_id=None):
     Returns:
         bool: True if successful, False otherwise
     """
+    # Check if S3 is available
+    global s3_available
+    if not s3_available:
+        logger.error("S3 storage is not available. Document deletion is disabled.")
+        return False
+    
     try:
         document = Document.query.get(document_id)
         
@@ -318,6 +356,12 @@ def download_document_content(document_id):
     Returns:
         tuple: (BytesIO object, document) or (None, None) if download fails
     """
+    # Check if S3 is available
+    global s3_available
+    if not s3_available:
+        logger.error("S3 storage is not available. Document download is disabled.")
+        return None, None
+    
     try:
         document = Document.query.get(document_id)
         
@@ -352,6 +396,12 @@ def get_document_url(document_id, expiration=3600):
     Returns:
         str: The presigned URL or None if error
     """
+    # Check if S3 is available
+    global s3_available
+    if not s3_available:
+        logger.error("S3 storage is not available. Document URL generation is disabled.")
+        return None
+    
     try:
         document = Document.query.get(document_id)
         

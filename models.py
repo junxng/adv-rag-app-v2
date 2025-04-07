@@ -65,8 +65,15 @@ class Document(db.Model):
             expiration (int): URL expiration time in seconds
             
         Returns:
-            str: Presigned URL for the document
+            str: Presigned URL for the document or None if S3 is not available
         """
+        # Import here to avoid circular import
+        from document_service import s3_available
+        
+        if not s3_available:
+            # S3 storage is not available
+            return None
+            
         from aws_services import S3Service
         
         s3_service = S3Service()

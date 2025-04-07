@@ -37,6 +37,7 @@
 
         <div class="row mb-4">
             <div class="col-md-12">
+                {% if s3_available %}
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title">Upload New Document</h5>
@@ -73,6 +74,14 @@
                         <button id="upload-button" class="btn btn-primary mt-3">Upload</button>
                     </div>
                 </div>
+                {% else %}
+                <div class="alert alert-warning">
+                    <h4 class="alert-heading">Document Storage Unavailable</h4>
+                    <p>S3 document storage is currently not available. Document upload and management features are disabled.</p>
+                    <hr>
+                    <p class="mb-0">Please check your AWS credentials and S3 bucket configuration. Make sure you have the proper S3 permissions set up.</p>
+                </div>
+                {% endif %}
             </div>
         </div>
 

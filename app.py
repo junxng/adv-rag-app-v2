@@ -34,6 +34,10 @@ with app.app_context():
     # Create tables
     db.create_all()
     
+    # Initialize the S3 bucket for document storage
+    from document_service import init_s3_bucket
+    init_s3_bucket()
+    
     # Initialize the database with some sample data if needed
     from models import User, SupportTicket, KnowledgeArticle
     
@@ -302,10 +306,11 @@ def document_list():
     # Mock user ID for demo (in real app, this would come from authentication)
     user_id = 1
     
-    from document_service import get_user_documents
+    # Check if S3 is available
+    from document_service import s3_available, get_user_documents
     documents = get_user_documents(user_id)
     
-    return render_template('documents.html', documents=documents)
+    return render_template('documents.html', documents=documents, s3_available=s3_available)
 
 @app.route('/api/documents', methods=['GET'])
 def api_document_list():
@@ -315,7 +320,7 @@ def api_document_list():
     # Mock user ID for demo (in real app, this would come from authentication)
     user_id = 1
     
-    from document_service import get_user_documents
+    from document_service import get_user_documents, s3_available
     documents = get_user_documents(user_id)
     
     # Convert documents to JSON-serializable format
@@ -327,16 +332,25 @@ def api_document_list():
             'size': doc.file_size,
             'mime_type': doc.mime_type,
             'created_at': doc.created_at.isoformat(),
-            'url': doc.get_download_url()
+            'url': doc.get_download_url(),
+            's3_available': s3_available
         })
         
-    return jsonify({'documents': result})
+    return jsonify({
+        'documents': result,
+        's3_available': s3_available
+    })
 
 @app.route('/api/documents/upload', methods=['POST'])
 def api_upload_document():
     """
     API endpoint to upload a document.
     """
+    # Check if S3 is available
+    from document_service import s3_available
+    if not s3_available:
+        return jsonify({'error': 'Document storage is currently unavailable. Please check AWS credentials and permissions.'}), 503
+        
     # Mock user ID for demo (in real app, this would come from authentication)
     user_id = 1
     
@@ -377,7 +391,11 @@ def api_get_document(document_id):
     """
     API endpoint to get a document's details.
     """
-    from document_service import get_document
+    # Check if S3 is available
+    from document_service import s3_available, get_document
+    if not s3_available:
+        return jsonify({'error': 'Document storage is currently unavailable. Please check AWS credentials and permissions.'}), 503
+        
     document = get_document(document_id)
     
     if document:
@@ -397,10 +415,14 @@ def api_delete_document(document_id):
     """
     API endpoint to delete a document.
     """
+    # Check if S3 is available
+    from document_service import s3_available, delete_document
+    if not s3_available:
+        return jsonify({'error': 'Document storage is currently unavailable. Please check AWS credentials and permissions.'}), 503
+        
     # Mock user ID for demo (in real app, this would come from authentication)
     user_id = 1
     
-    from document_service import delete_document
     success = delete_document(document_id, user_id)
     
     if success:
@@ -413,8 +435,13 @@ def download_document(document_id):
     """
     Download a document.
     """
-    from document_service import download_document_content, get_document
-    from flask import send_file
+    # Check if S3 is available
+    from document_service import s3_available, download_document_content, get_document
+    from flask import send_file, redirect, url_for, flash
+    
+    if not s3_available:
+        flash("Document storage is currently unavailable. Please check AWS credentials and permissions.", "warning")
+        return redirect(url_for('document_list'))
     
     file_obj, document = download_document_content(document_id)
     
@@ -426,14 +453,15 @@ def download_document(document_id):
             download_name=document.original_filename
         )
     else:
-        return "Document not found", 404
+        flash("Document not found or could not be downloaded.", "error")
+        return redirect(url_for('document_list'))
 
 @app.route('/tickets/<int:ticket_id>/documents')
 def ticket_documents(ticket_id):
     """
     Display documents associated with a specific ticket.
     """
-    from document_service import get_ticket_documents
+    from document_service import get_ticket_documents, s3_available
     documents = get_ticket_documents(ticket_id)
     
     # Get the ticket details
@@ -443,4 +471,4 @@ def ticket_documents(ticket_id):
     if not ticket:
         return "Ticket not found", 404
         
-    return render_template('ticket_documents.html', documents=documents, ticket=ticket)
+    return render_template('ticket_documents.html', documents=documents, ticket=ticket, s3_available=s3_available)
