@@ -23,7 +23,82 @@ TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY", "default_key")
 
 def query_sql_database(question, user_id, chat_history=None):
     """
-    Queries the SQL database for user account or support ticket information.
+    Queries the database for user account or support ticket information.
+    First tries AWS DynamoDB, falls back to SQL database if AWS credentials not available.
+    
+    Args:
+        question (str): The user's question
+        user_id (int): The user's ID
+        chat_history (list): Previous messages in the conversation
+    
+    Returns:
+        str: The formatted response to the user's query
+    """
+    try:
+        # Try to use DynamoDB first if AWS credentials are available
+        aws_access_key = os.environ.get("AWS_ACCESS_KEY_ID")
+        aws_secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
+        
+        if aws_access_key and aws_secret_key:
+            # Import here to avoid circular imports
+            from aws_services import DynamoDBService
+            
+            # Use DynamoDB
+            dynamodb = DynamoDBService()
+            
+            # Convert int user_id to string for DynamoDB
+            dynamo_user_id = f"user{user_id}"
+            
+            # Get user data from DynamoDB
+            user_data = dynamodb.get_user_data(dynamo_user_id)
+            if not user_data:
+                logger.warning(f"User with ID {dynamo_user_id} not found in DynamoDB, falling back to SQL")
+                return query_sql_database_fallback(question, user_id, chat_history)
+            
+            # Get user tickets from DynamoDB
+            ticket_data = dynamodb.get_user_tickets(dynamo_user_id)
+            
+            # Create a data context for the AI
+            data_context = {
+                "user": user_data,
+                "tickets": ticket_data
+            }
+            
+            # Create a prompt for the AI to analyze the data
+            prompt = f"""
+            You are a tech support assistant with access to the following user data:
+            
+            {json.dumps(data_context, indent=2)}
+            
+            A user with ID {user_id} has asked: "{question}"
+            
+            Based on the available data, provide a helpful and accurate response.
+            Focus only on the information that's relevant to their query.
+            For ticket status questions, mention the most recent ticket first.
+            Be conversational but precise, and don't make up information.
+            """
+            
+            # Use OpenAI to generate a response based on the data
+            response = openai.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7
+            )
+            
+            return response.choices[0].message.content
+            
+        else:
+            # If AWS credentials are not available, use SQL database
+            logger.info("AWS credentials not available, using SQL database instead")
+            return query_sql_database_fallback(question, user_id, chat_history)
+        
+    except Exception as e:
+        logger.error(f"Error querying database: {str(e)}")
+        return "I'm having trouble accessing your account information right now. Please try again later."
+
+def query_sql_database_fallback(question, user_id, chat_history=None):
+    """
+    Fallback method that queries the SQL database for user account or support ticket information.
     
     Args:
         question (str): The user's question
@@ -88,7 +163,7 @@ def query_sql_database(question, user_id, chat_history=None):
         return response.choices[0].message.content
         
     except Exception as e:
-        logger.error(f"Error querying SQL database: {str(e)}")
+        logger.error(f"Error in SQL database fallback: {str(e)}")
         return "I'm having trouble accessing your account information right now. Please try again later."
 
 def search_tavily(question, chat_history=None):
@@ -224,6 +299,27 @@ def retrieve_from_vectordb(question, chat_history=None):
     try:
         # Query the vector store for relevant documents
         relevant_docs = query_vector_store(question)
+        
+        # Calculate a simple relevance score (0-1) based on the number of docs returned
+        # and their content length in relation to the query
+        relevance_score = 0
+        if relevant_docs:
+            # Simple heuristic: average length of content vs query length
+            avg_content_length = sum(len(doc.get('content', '')) for doc in relevant_docs) / len(relevant_docs)
+            query_length = len(question)
+            relevance_ratio = min(avg_content_length / max(query_length, 1), 10) / 10  # Cap at 1.0
+            relevance_score = min(1.0, 0.5 + (0.5 * relevance_ratio))  # Base 0.5 + up to 0.5 for content ratio
+        
+        # Log retrieval effectiveness for monitoring
+        try:
+            from monitoring import log_retrieval_effectiveness
+            log_retrieval_effectiveness(
+                query=question,
+                retrieved_docs=relevant_docs,
+                relevance_score=relevance_score
+            )
+        except Exception as monitoring_error:
+            logger.warning(f"Failed to log retrieval effectiveness: {str(monitoring_error)}")
         
         # Create a prompt for the AI to synthesize the retrieved documents
         prompt = f"""

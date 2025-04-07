@@ -112,7 +112,7 @@ with app.app_context():
 # Import components after database is initialized
 from query_classifier import classify_query
 from data_sources import query_sql_database, search_tavily, retrieve_from_vectordb
-from monitoring import log_interaction
+from monitoring import log_interaction, get_monitoring_stats
 from vector_store import initialize_vector_store
 
 # Initialize vector store
@@ -129,13 +129,50 @@ def chat():
     data = request.json
     user_message = data.get('message', '')
     
-    # Get or initialize chat history
-    chat_history = session.get('chat_history', [])
-    
-    # Add user message to history
-    chat_history.append({"role": "user", "content": user_message})
+    # Get session ID
+    session_id = session.get('session_id')
+    if not session_id:
+        # Generate a new session ID if one doesn't exist
+        session_id = os.urandom(16).hex()
+        session['session_id'] = session_id
+        
+        # Store session ID in environment for LangSmith tracking
+        os.environ["SESSION_ID"] = session_id
     
     try:
+        # First try to use LangChain memory manager if available
+        try:
+            from memory_manager import memory_manager
+            
+            # Get chat history from the memory manager
+            chat_history = memory_manager.get_chat_history(session_id)
+            
+            # If this is a new conversation, check if we need to import from the session
+            if not chat_history and 'chat_history' in session:
+                memory_manager.import_from_session(session_id, session['chat_history'])
+                chat_history = memory_manager.get_chat_history(session_id)
+            
+            # Add user message to memory
+            memory_manager.add_user_message(session_id, user_message)
+            
+            # Update chat history
+            chat_history = memory_manager.get_chat_history(session_id)
+            
+            logger.debug(f"Using LangChain memory manager for session {session_id}")
+            using_langchain_memory = True
+            
+        except Exception as memory_error:
+            # Fall back to session-based memory if LangChain memory manager fails
+            logger.warning(f"Failed to use LangChain memory: {str(memory_error)}. Using session memory instead.")
+            
+            # Get or initialize chat history from session
+            chat_history = session.get('chat_history', [])
+            
+            # Add user message to history
+            chat_history.append({"role": "user", "content": user_message})
+            
+            using_langchain_memory = False
+        
         # Classify query
         query_type = classify_query(user_message, chat_history)
         logger.debug(f"Query classified as: {query_type}")
@@ -157,14 +194,18 @@ def chat():
         log_interaction(user_message, response, query_type, source)
         
         # Add bot response to history
-        chat_history.append({"role": "assistant", "content": response})
-        
-        # Limit history size to prevent session from growing too large
-        if len(chat_history) > 20:
-            chat_history = chat_history[-20:]
-        
-        # Save updated history to session
-        session['chat_history'] = chat_history
+        if using_langchain_memory:
+            memory_manager.add_ai_message(session_id, response)
+            chat_history = memory_manager.get_chat_history(session_id)
+        else:
+            chat_history.append({"role": "assistant", "content": response})
+            
+            # Limit history size to prevent session from growing too large
+            if len(chat_history) > 20:
+                chat_history = chat_history[-20:]
+            
+            # Save updated history to session
+            session['chat_history'] = chat_history
         
         return jsonify({
             "message": response,
@@ -180,5 +221,73 @@ def chat():
 
 @app.route('/api/reset', methods=['POST'])
 def reset_chat():
+    # Get session ID
+    session_id = session.get('session_id')
+    
+    # Clear session chat history
     session['chat_history'] = []
+    
+    # Clear LangChain memory if available
+    if session_id:
+        try:
+            from memory_manager import memory_manager
+            memory_manager.clear_memory(session_id)
+            logger.debug(f"Cleared LangChain memory for session {session_id}")
+        except Exception as e:
+            logger.warning(f"Failed to clear LangChain memory: {str(e)}")
+    
     return jsonify({"status": "success"})
+
+@app.route('/api/stats', methods=['GET'])
+def get_stats():
+    """
+    Get monitoring statistics for the chatbot.
+    This endpoint requires admin authentication in a production environment.
+    """
+    try:
+        stats = get_monitoring_stats()
+        return jsonify(stats)
+    except Exception as e:
+        logger.error(f"Error getting stats: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/admin/dashboard')
+def admin_dashboard():
+    """
+    Admin dashboard for monitoring chatbot performance.
+    This route should be protected by authentication in a production environment.
+    """
+    # In a real application, add authentication check here
+    return render_template('admin_dashboard.html')
+
+@app.route('/api/feedback', methods=['POST'])
+def submit_feedback():
+    """
+    Submit user feedback on chatbot responses.
+    This feedback is used to improve classification accuracy and retrieval effectiveness.
+    """
+    try:
+        data = request.json
+        user_message = data.get('user_message')
+        bot_response = data.get('bot_response')
+        feedback_rating = data.get('rating')  # 1-5 scale
+        correct_type = data.get('correct_type')  # If user indicates the correct classification
+        
+        if not all([user_message, bot_response, feedback_rating]):
+            return jsonify({"error": "Missing required fields"}), 400
+            
+        # Log correct classification if provided
+        if correct_type:
+            from monitoring import log_classification_accuracy
+            log_classification_accuracy(
+                user_message=user_message,
+                predicted_type="unknown",  # We don't know what the system predicted at this point
+                correct_type=correct_type
+            )
+            
+        logger.info(f"Received feedback: {feedback_rating}/5 for response to: {user_message[:50]}...")
+        return jsonify({"status": "success"})
+        
+    except Exception as e:
+        logger.error(f"Error submitting feedback: {str(e)}")
+        return jsonify({"error": str(e)}), 500

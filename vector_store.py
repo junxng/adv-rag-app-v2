@@ -16,7 +16,11 @@ logger = logging.getLogger(__name__)
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 openai = OpenAI(api_key=OPENAI_API_KEY)
 
-# Global variables for vector store
+# Check if Pinecone should be used
+USE_PINECONE = os.environ.get("USE_PINECONE", "false").lower() == "true"
+PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")
+
+# Global variables for local FAISS vector store (fallback)
 index = None
 documents = []
 document_ids = []
@@ -44,7 +48,39 @@ def get_embedding(text):
 
 def initialize_vector_store():
     """
-    Initialize the FAISS vector store with knowledge base articles.
+    Initialize the vector store with knowledge base articles.
+    Uses Pinecone if available, otherwise falls back to local FAISS.
+    """
+    # Try to use Pinecone if configured
+    if USE_PINECONE and PINECONE_API_KEY:
+        try:
+            # Import Pinecone service (import here to avoid circular imports)
+            from pinecone_service import PineconeService
+            
+            # Initialize Pinecone
+            pinecone = PineconeService()
+            
+            # Populate Pinecone from knowledge articles
+            if pinecone.is_available:
+                success = pinecone.populate_from_knowledge_articles()
+                if success:
+                    logger.info("Pinecone vector store initialized successfully")
+                    return
+                else:
+                    logger.warning("Failed to populate Pinecone, falling back to FAISS")
+            else:
+                logger.warning("Pinecone is not available, falling back to FAISS")
+                
+        except Exception as e:
+            logger.error(f"Error initializing Pinecone: {str(e)}")
+            logger.warning("Falling back to local FAISS vector store")
+    
+    # Initialize local FAISS vector store as fallback
+    initialize_faiss_vector_store()
+
+def initialize_faiss_vector_store():
+    """
+    Initialize the local FAISS vector store with knowledge base articles.
     """
     global index, documents, document_ids
     
@@ -85,14 +121,52 @@ def initialize_vector_store():
         embeddings_array = np.array(embeddings).astype('float32')
         index.add(embeddings_array)
         
-        logger.info(f"Vector store initialized with {len(documents)} documents")
+        logger.info(f"FAISS vector store initialized with {len(documents)} documents")
         
     except Exception as e:
-        logger.error(f"Error initializing vector store: {str(e)}")
+        logger.error(f"Error initializing FAISS vector store: {str(e)}")
 
 def query_vector_store(query, top_k=3):
     """
     Query the vector store for documents relevant to the query.
+    Uses Pinecone if available, otherwise falls back to local FAISS.
+    
+    Args:
+        query (str): The query text
+        top_k (int): Number of top results to return
+        
+    Returns:
+        list: The relevant documents
+    """
+    # Try to use Pinecone if configured
+    if USE_PINECONE and PINECONE_API_KEY:
+        try:
+            # Import Pinecone service
+            from pinecone_service import PineconeService
+            
+            # Initialize Pinecone
+            pinecone = PineconeService()
+            
+            # Query Pinecone
+            if pinecone.is_available:
+                results = pinecone.query(query, top_k)
+                if results:
+                    return results
+                else:
+                    logger.warning("No results from Pinecone, falling back to FAISS")
+            else:
+                logger.warning("Pinecone is not available, falling back to FAISS")
+                
+        except Exception as e:
+            logger.error(f"Error querying Pinecone: {str(e)}")
+            logger.warning("Falling back to local FAISS vector store")
+    
+    # Query local FAISS vector store as fallback
+    return query_faiss_vector_store(query, top_k)
+
+def query_faiss_vector_store(query, top_k=3):
+    """
+    Query the local FAISS vector store for documents relevant to the query.
     
     Args:
         query (str): The query text
@@ -104,7 +178,7 @@ def query_vector_store(query, top_k=3):
     global index, documents
     
     if index is None or not documents:
-        logger.warning("Vector store not initialized")
+        logger.warning("FAISS vector store not initialized")
         return []
     
     try:
@@ -124,5 +198,5 @@ def query_vector_store(query, top_k=3):
         return results
         
     except Exception as e:
-        logger.error(f"Error querying vector store: {str(e)}")
+        logger.error(f"Error querying FAISS vector store: {str(e)}")
         return []

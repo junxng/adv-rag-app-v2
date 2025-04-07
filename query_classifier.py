@@ -121,6 +121,17 @@ def classify_query(query, chat_history=None):
             logger.debug(f"LangChain classification: {category} (confidence: {confidence})")
             logger.debug(f"Explanation: {explanation}")
             
+            # Log classification data for monitoring (if monitoring module is available)
+            try:
+                from monitoring import log_classification_accuracy
+                log_classification_accuracy(
+                    user_message=query,
+                    predicted_type=category,
+                    confidence=confidence
+                )
+            except Exception as monitoring_error:
+                logger.warning(f"Failed to log classification accuracy: {str(monitoring_error)}")
+            
             return category
             
         except Exception as lc_error:
@@ -154,6 +165,18 @@ def classify_query(query, chat_history=None):
             category = result.get("category", "knowledge")
             
             logger.debug(f"Fallback classification: {category}")
+            
+            # Log classification data for monitoring (if monitoring module is available)
+            try:
+                from monitoring import log_classification_accuracy
+                log_classification_accuracy(
+                    user_message=query,
+                    predicted_type=category,
+                    confidence=None  # No confidence score from direct API call
+                )
+            except Exception as monitoring_error:
+                logger.warning(f"Failed to log classification accuracy: {str(monitoring_error)}")
+            
             return category
         
     except Exception as e:
