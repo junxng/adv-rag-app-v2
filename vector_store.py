@@ -13,8 +13,14 @@ from models import KnowledgeArticle
 logger = logging.getLogger(__name__)
 
 # Initialize OpenAI client
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-openai = OpenAI(api_key=OPENAI_API_KEY)
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+# Only initialize the OpenAI client if we have an API key
+if OPENAI_API_KEY:
+    openai = OpenAI(api_key=OPENAI_API_KEY)
+else:
+    logger.warning("OPENAI_API_KEY not found in environment variables")
+    # Create a placeholder for the openai client to avoid errors
+    openai = None
 
 # Check if Pinecone should be used
 USE_PINECONE = os.environ.get("USE_PINECONE", "false").lower() == "true"
@@ -35,6 +41,11 @@ def get_embedding(text):
     Returns:
         list: The embedding vector
     """
+    # If OpenAI client is not available, return a zero vector
+    if openai is None:
+        logger.warning("OpenAI client not initialized, returning zero vector")
+        return [0] * 1536  # Ada embeddings are 1536 dimensions
+        
     try:
         response = openai.embeddings.create(
             model="text-embedding-ada-002",

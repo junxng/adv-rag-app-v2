@@ -44,7 +44,7 @@
                     <div class="card-body">
                         <h5 class="card-title">Classification Accuracy</h5>
                         <h2 class="display-4 fw-bold text-success" id="classification-accuracy">--</h2>
-                        <p class="text-muted">Based on LangSmith feedback</p>
+                        <p class="text-muted">Based on Langfuse feedback</p>
                     </div>
                 </div>
             </div>
@@ -60,8 +60,8 @@
             <div class="col-md-3">
                 <div class="card bg-dark-subtle stats-card h-100">
                     <div class="card-body">
-                        <h5 class="card-title">LangSmith Runs</h5>
-                        <h2 class="display-4 fw-bold text-primary" id="langsmith-runs">--</h2>
+                        <h5 class="card-title">Langfuse Observations</h5>
+                        <h2 class="display-4 fw-bold text-primary" id="langfuse-observations">--</h2>
                         <p class="text-muted">Total tracked interactions</p>
                     </div>
                 </div>
@@ -218,20 +218,20 @@
             // Update overview stats
             document.getElementById('total-interactions').textContent = data.total_interactions || 0;
             
-            // Update LangSmith stats if available
-            if (data.langsmith_stats) {
+            // Update Langfuse stats if available
+            if (data.langfuse_stats) {
                 document.getElementById('classification-accuracy').textContent = 
-                    data.langsmith_stats.classification_accuracy ? `${data.langsmith_stats.classification_accuracy}%` : 'N/A';
+                    data.langfuse_stats.classification_accuracy ? `${data.langfuse_stats.classification_accuracy}%` : 'N/A';
                 
                 document.getElementById('retrieval-score').textContent = 
-                    data.langsmith_stats.avg_relevance_score ? data.langsmith_stats.avg_relevance_score.toFixed(2) : 'N/A';
+                    data.langfuse_stats.avg_relevance_score ? data.langfuse_stats.avg_relevance_score.toFixed(2) : 'N/A';
                 
-                document.getElementById('langsmith-runs').textContent = 
-                    data.langsmith_stats.langsmith_runs || 0;
+                document.getElementById('langfuse-observations').textContent = 
+                    data.langfuse_stats.observations || 0;
             } else {
                 document.getElementById('classification-accuracy').textContent = 'N/A';
                 document.getElementById('retrieval-score').textContent = 'N/A';
-                document.getElementById('langsmith-runs').textContent = 'N/A';
+                document.getElementById('langfuse-observations').textContent = 'N/A';
             }
             
             // Update charts

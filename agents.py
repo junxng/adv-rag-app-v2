@@ -9,8 +9,14 @@ from openai import OpenAI
 logger = logging.getLogger(__name__)
 
 # Initialize OpenAI client
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-openai = OpenAI(api_key=OPENAI_API_KEY)
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+# Only initialize the OpenAI client if we have an API key
+if OPENAI_API_KEY:
+    openai = OpenAI(api_key=OPENAI_API_KEY)
+else:
+    logger.warning("OPENAI_API_KEY not found in environment variables")
+    # Create a placeholder for the openai client to avoid errors
+    openai = None
 
 def format_chat_history(chat_history):
     """
@@ -49,6 +55,11 @@ def generate_response(messages):
     Returns:
         str: The generated response
     """
+    # Check if OpenAI client is available
+    if openai is None:
+        logger.error("OpenAI client not initialized, cannot generate response")
+        return "I'm having trouble generating a response right now. Please try again later."
+        
     try:
         response = openai.chat.completions.create(
             model="gpt-4o",

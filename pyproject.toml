@@ -24,4 +24,5 @@ dependencies = [
     "langsmith>=0.3.25",
     "botocore>=1.37.28",
     "pinecone>=6.0.2",
+    "langfuse>=2.60.2",
 ]

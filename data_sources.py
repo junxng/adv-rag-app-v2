@@ -15,8 +15,14 @@ from vector_store import query_vector_store
 logger = logging.getLogger(__name__)
 
 # Initialize OpenAI client
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-openai = OpenAI(api_key=OPENAI_API_KEY)
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+# Only initialize the OpenAI client if we have an API key
+if OPENAI_API_KEY:
+    openai = OpenAI(api_key=OPENAI_API_KEY)
+else:
+    logger.warning("OPENAI_API_KEY not found in environment variables")
+    # Create a placeholder for the openai client to avoid errors
+    openai = None
 
 # Initialize Tavily API
 TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY", "default_key")
@@ -78,6 +84,11 @@ def query_sql_database(question, user_id, chat_history=None):
             Be conversational but precise, and don't make up information.
             """
             
+            # Check if OpenAI client is available
+            if openai is None:
+                logger.error("OpenAI client not initialized, cannot generate response")
+                return "I'm having trouble accessing your account information right now. Please try again later."
+                
             # Use OpenAI to generate a response based on the data
             response = openai.chat.completions.create(
                 model="gpt-4o",
@@ -153,6 +164,11 @@ def query_sql_database_fallback(question, user_id, chat_history=None):
         Be conversational but precise, and don't make up information.
         """
         
+        # Check if OpenAI client is available
+        if openai is None:
+            logger.error("OpenAI client not initialized, cannot generate response")
+            return "I'm having trouble accessing your account information right now. Please try again later."
+            
         # Use OpenAI to generate a response based on the data
         response = openai.chat.completions.create(
             model="gpt-4o",
@@ -200,6 +216,11 @@ def search_tavily(question, chat_history=None):
         Be conversational but precise, and don't make up information.
         """
         
+        # Check if OpenAI client is available
+        if openai is None:
+            logger.error("OpenAI client not initialized, cannot generate response")
+            return "I'm having trouble searching for troubleshooting information right now. Please try again later."
+            
         # Use OpenAI to generate a response based on the search results
         response = openai.chat.completions.create(
             model="gpt-4o",
@@ -336,6 +357,11 @@ def retrieve_from_vectordb(question, chat_history=None):
         If the information doesn't fully answer their question, acknowledge that and stick to what we know.
         """
         
+        # Check if OpenAI client is available
+        if openai is None:
+            logger.error("OpenAI client not initialized, cannot generate response")
+            return "I'm having trouble accessing our knowledge base right now. Please try again later."
+            
         # Use OpenAI to generate a response based on the retrieved documents
         response = openai.chat.completions.create(
             model="gpt-4o",
