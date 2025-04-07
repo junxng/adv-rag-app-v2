@@ -356,3 +356,100 @@ class S3Service:
         except ClientError as e:
             logger.error(f"Error generating presigned URL: {str(e)}")
             return None
+            
+    def upload_fileobj(self, file_obj, bucket_name, object_key, content_type=None):
+        """
+        Upload a file-like object to S3.
+        
+        Args:
+            file_obj (file-like object): The file-like object to upload
+            bucket_name (str): The name of the bucket
+            object_key (str): The key to use for the object in S3
+            content_type (str, optional): The content type of the file
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            extra_args = {}
+            if content_type:
+                extra_args['ContentType'] = content_type
+                
+            self.s3.upload_fileobj(file_obj, bucket_name, object_key, ExtraArgs=extra_args)
+            logger.info(f"File uploaded to {bucket_name}/{object_key}")
+            return True
+            
+        except ClientError as e:
+            logger.error(f"Error uploading file to S3: {str(e)}")
+            return False
+            
+    def list_objects(self, bucket_name, prefix=''):
+        """
+        List objects in an S3 bucket with an optional prefix.
+        
+        Args:
+            bucket_name (str): The name of the bucket
+            prefix (str, optional): The prefix to filter objects
+            
+        Returns:
+            list: List of objects in the bucket
+        """
+        try:
+            response = self.s3.list_objects_v2(
+                Bucket=bucket_name,
+                Prefix=prefix
+            )
+            
+            if 'Contents' in response:
+                return response['Contents']
+            else:
+                return []
+                
+        except ClientError as e:
+            logger.error(f"Error listing objects in S3: {str(e)}")
+            return []
+            
+    def delete_object(self, bucket_name, object_key):
+        """
+        Delete an object from S3.
+        
+        Args:
+            bucket_name (str): The name of the bucket
+            object_key (str): The key of the object in S3
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            self.s3.delete_object(
+                Bucket=bucket_name,
+                Key=object_key
+            )
+            logger.info(f"Object {bucket_name}/{object_key} deleted")
+            return True
+            
+        except ClientError as e:
+            logger.error(f"Error deleting object from S3: {str(e)}")
+            return False
+    
+    def get_object_metadata(self, bucket_name, object_key):
+        """
+        Get metadata for an object in S3.
+        
+        Args:
+            bucket_name (str): The name of the bucket
+            object_key (str): The key of the object in S3
+            
+        Returns:
+            dict: The object metadata or None if error
+        """
+        try:
+            response = self.s3.head_object(
+                Bucket=bucket_name,
+                Key=object_key
+            )
+            return response
+            
+        except ClientError as e:
+            logger.error(f"Error getting object metadata: {str(e)}")
+            return None

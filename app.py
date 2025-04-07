@@ -291,3 +291,156 @@ def submit_feedback():
     except Exception as e:
         logger.error(f"Error submitting feedback: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+# Document management routes
+@app.route('/documents')
+def document_list():
+    """
+    Display a list of documents for the current user.
+    In a real application, this would require authentication.
+    """
+    # Mock user ID for demo (in real app, this would come from authentication)
+    user_id = 1
+    
+    from document_service import get_user_documents
+    documents = get_user_documents(user_id)
+    
+    return render_template('documents.html', documents=documents)
+
+@app.route('/api/documents', methods=['GET'])
+def api_document_list():
+    """
+    API endpoint to get a list of documents for the current user.
+    """
+    # Mock user ID for demo (in real app, this would come from authentication)
+    user_id = 1
+    
+    from document_service import get_user_documents
+    documents = get_user_documents(user_id)
+    
+    # Convert documents to JSON-serializable format
+    result = []
+    for doc in documents:
+        result.append({
+            'id': doc.id,
+            'filename': doc.original_filename,
+            'size': doc.file_size,
+            'mime_type': doc.mime_type,
+            'created_at': doc.created_at.isoformat(),
+            'url': doc.get_download_url()
+        })
+        
+    return jsonify({'documents': result})
+
+@app.route('/api/documents/upload', methods=['POST'])
+def api_upload_document():
+    """
+    API endpoint to upload a document.
+    """
+    # Mock user ID for demo (in real app, this would come from authentication)
+    user_id = 1
+    
+    # Check if the post request has the file part
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+        
+    file = request.files['file']
+    
+    # If user does not select a file, browser also
+    # submits an empty part without filename
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+        
+    ticket_id = request.form.get('ticket_id')
+    if ticket_id:
+        ticket_id = int(ticket_id)
+    
+    is_public = request.form.get('is_public') == 'true'
+    
+    from document_service import upload_document
+    document = upload_document(file, user_id, ticket_id, is_public)
+    
+    if document:
+        return jsonify({
+            'id': document.id,
+            'filename': document.original_filename,
+            'size': document.file_size,
+            'mime_type': document.mime_type,
+            'created_at': document.created_at.isoformat(),
+            'url': document.get_download_url()
+        })
+    else:
+        return jsonify({'error': 'Failed to upload document'}), 500
+
+@app.route('/api/documents/<int:document_id>', methods=['GET'])
+def api_get_document(document_id):
+    """
+    API endpoint to get a document's details.
+    """
+    from document_service import get_document
+    document = get_document(document_id)
+    
+    if document:
+        return jsonify({
+            'id': document.id,
+            'filename': document.original_filename,
+            'size': document.file_size,
+            'mime_type': document.mime_type,
+            'created_at': document.created_at.isoformat(),
+            'url': document.get_download_url()
+        })
+    else:
+        return jsonify({'error': 'Document not found'}), 404
+
+@app.route('/api/documents/<int:document_id>', methods=['DELETE'])
+def api_delete_document(document_id):
+    """
+    API endpoint to delete a document.
+    """
+    # Mock user ID for demo (in real app, this would come from authentication)
+    user_id = 1
+    
+    from document_service import delete_document
+    success = delete_document(document_id, user_id)
+    
+    if success:
+        return jsonify({'status': 'success'})
+    else:
+        return jsonify({'error': 'Failed to delete document'}), 500
+
+@app.route('/documents/download/<int:document_id>')
+def download_document(document_id):
+    """
+    Download a document.
+    """
+    from document_service import download_document_content, get_document
+    from flask import send_file
+    
+    file_obj, document = download_document_content(document_id)
+    
+    if file_obj and document:
+        return send_file(
+            file_obj,
+            mimetype=document.mime_type,
+            as_attachment=True,
+            download_name=document.original_filename
+        )
+    else:
+        return "Document not found", 404
+
+@app.route('/tickets/<int:ticket_id>/documents')
+def ticket_documents(ticket_id):
+    """
+    Display documents associated with a specific ticket.
+    """
+    from document_service import get_ticket_documents
+    documents = get_ticket_documents(ticket_id)
+    
+    # Get the ticket details
+    from models import SupportTicket
+    ticket = SupportTicket.query.get(ticket_id)
+    
+    if not ticket:
+        return "Ticket not found", 404
+        
+    return render_template('ticket_documents.html', documents=documents, ticket=ticket)

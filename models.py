@@ -38,3 +38,36 @@ class ChatLog(db.Model):
     data_source = db.Column(db.String(50))  # Database, Web Search, Knowledge Base
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+class Document(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(255), nullable=False)
+    original_filename = db.Column(db.String(255), nullable=False)
+    file_size = db.Column(db.Integer, nullable=False)  # Size in bytes
+    mime_type = db.Column(db.String(100), nullable=False)
+    s3_bucket = db.Column(db.String(120), nullable=False)
+    s3_key = db.Column(db.String(255), nullable=False, unique=True)
+    is_public = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    ticket_id = db.Column(db.Integer, db.ForeignKey('support_ticket.id'), nullable=True)
+    
+    # Add relationships
+    user = db.relationship('User', backref=db.backref('documents', lazy='dynamic'))
+    ticket = db.relationship('SupportTicket', backref=db.backref('documents', lazy='dynamic'))
+    
+    def get_download_url(self, expiration=3600):
+        """
+        Generate a download URL for this document.
+        
+        Args:
+            expiration (int): URL expiration time in seconds
+            
+        Returns:
+            str: Presigned URL for the document
+        """
+        from aws_services import S3Service
+        
+        s3_service = S3Service()
+        return s3_service.get_file_url(self.s3_bucket, self.s3_key, expiration)
