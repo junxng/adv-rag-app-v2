@@ -9,6 +9,7 @@ dependencies = [
     "flask>=3.1.0",
     "flask-sqlalchemy>=3.1.1",
     "gunicorn>=23.0.0",
+    "langchain-openai>=0.3.12",
     "langchain>=0.3.23",
     "numpy>=2.2.4",
     "openai>=1.70.0",
