@@ -11,33 +11,7 @@ logger = logging.getLogger(__name__)
 
 # Constants
 # Use a safe bucket name that follows S3 naming conventions
-S3_DOCUMENT_BUCKET = os.environ.get("S3_DOCUMENT_BUCKET")
-if not S3_DOCUMENT_BUCKET:
-    logger.warning("S3_DOCUMENT_BUCKET not set in environment variables")
-    # Create a unique but deterministic bucket name based on AWS account ID
-    # This avoids conflicts with globally unique bucket names
-    import hashlib
-    import boto3
-    
-    try:
-        # Try to get AWS account ID to make a unique bucket name
-        sts = boto3.client('sts',
-            region_name=os.environ.get("AWS_REGION", "us-east-1"),
-            aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
-            aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY")
-        )
-        account_id = sts.get_caller_identity()["Account"]
-        logger.info(f"Using AWS Account ID: {account_id} for bucket name generation")
-        
-        # Create a hash of the account ID to ensure uniqueness while being deterministic
-        hash_obj = hashlib.md5(account_id.encode())
-        hash_suffix = hash_obj.hexdigest()[:8]
-        S3_DOCUMENT_BUCKET = f"tech-support-docs-{hash_suffix}"
-    except Exception as e:
-        logger.warning(f"Could not determine AWS account ID: {str(e)}")
-        # Fall back to a generic name
-        S3_DOCUMENT_BUCKET = "tech-support-documents"
-        
+S3_DOCUMENT_BUCKET = os.environ.get("S3_DOCUMENT_BUCKET", "adv-rag-app")
 logger.info(f"Using S3 bucket for document storage: {S3_DOCUMENT_BUCKET}")
     
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg', 'gif'}
@@ -56,6 +30,27 @@ def init_s3_bucket():
     try:
         logger.info(f"Initializing S3 bucket: {S3_DOCUMENT_BUCKET}")
         s3_service = S3Service()
+        
+        # First check if the bucket exists (without trying to create it)
+        try:
+            logger.info("Checking if bucket exists...")
+            s3_client = boto3.client('s3',
+                region_name=os.environ.get("AWS_REGION", "us-east-1"),
+                aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+                aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY")
+            )
+            s3_client.head_bucket(Bucket=S3_DOCUMENT_BUCKET)
+            logger.info(f"Bucket exists: {S3_DOCUMENT_BUCKET}")
+            s3_available = True
+            return
+        except botocore.exceptions.ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code')
+            if error_code == '404' or error_code == 'NoSuchBucket':
+                logger.warning(f"Bucket does not exist: {S3_DOCUMENT_BUCKET}. Will try to create it.")
+            else:
+                logger.warning(f"Error checking bucket: {error_code}. Will try to create it.")
+        
+        # Try to create the bucket if it doesn't exist
         success = s3_service.create_bucket_if_not_exists(S3_DOCUMENT_BUCKET)
         if success:
             logger.info(f"S3 bucket initialized successfully: {S3_DOCUMENT_BUCKET}")
