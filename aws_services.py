@@ -263,6 +263,11 @@ class S3Service:
             bool: True if bucket exists and is usable, False otherwise
         """
         try:
+            # Validate AWS credentials before proceeding
+            if not AWS_ACCESS_KEY or not AWS_SECRET_KEY:
+                logger.error("AWS credentials are missing. Cannot create or access S3 bucket.")
+                return False
+                
             # First, try to check if bucket exists and we can use it
             # This avoids needing to list all buckets (which requires additional permissions)
             try:
@@ -276,13 +281,18 @@ class S3Service:
                     return False
                     
                 error_code = str(e.response['Error']['Code'])
-                if error_code == '404':
+                error_msg = e.response['Error'].get('Message', 'No error message provided')
+                logger.warning(f"S3 bucket check error: Code={error_code}, Message={error_msg}")
+                
+                if error_code == '404' or error_code == 'NoSuchBucket':
                     # Bucket doesn't exist, try to create it
                     logger.info(f"Bucket {bucket_name} doesn't exist, attempting to create it")
                     try:
                         if AWS_REGION == 'us-east-1':
+                            logger.info(f"Creating bucket in us-east-1 region (default)")
                             self.s3.create_bucket(Bucket=bucket_name)
                         else:
+                            logger.info(f"Creating bucket in {AWS_REGION} region")
                             self.s3.create_bucket(
                                 Bucket=bucket_name,
                                 CreateBucketConfiguration={
@@ -293,32 +303,49 @@ class S3Service:
                         return True
                     except ClientError as create_error:
                         # If we can't create the bucket, log the error
-                        logger.error(f"Error creating S3 bucket: {str(create_error)}")
+                        if 'Error' in create_error.response:
+                            create_error_code = create_error.response['Error'].get('Code', 'Unknown')
+                            create_error_msg = create_error.response['Error'].get('Message', 'No details')
+                            logger.error(f"Error creating S3 bucket: Code={create_error_code}, Message={create_error_msg}")
+                        else:
+                            logger.error(f"Error creating S3 bucket: {str(create_error)}")
                         
+                        # Check if this is a bucket name conflict (bucket already exists but is owned by another account)
+                        if 'BucketAlreadyExists' in str(create_error) or 'BucketAlreadyOwnedByYou' in str(create_error):
+                            logger.warning(f"Bucket name '{bucket_name}' is already taken. Try a different unique name.")
+                            return False
+                            
                         # Try to see if we can still access objects in the bucket
                         # This is useful if the bucket exists in another account but we have limited permissions
                         try:
                             # Try a simple ListObjects operation to see if we can at least read the bucket
+                            logger.info(f"Trying to list objects in bucket as fallback")
                             self.s3.list_objects_v2(Bucket=bucket_name, MaxKeys=1)
                             logger.info(f"Cannot create bucket {bucket_name}, but can list objects")
                             return True
-                        except ClientError:
-                            # If we can't even list objects, then we really can't use this bucket
+                        except ClientError as list_access_error:
+                            logger.warning(f"Cannot list objects in bucket: {str(list_access_error)}")
                             return False
                 elif error_code == '403':
                     # Bucket exists but we don't have full access
                     # Let's check if we can at least perform basic operations
                     try:
                         # Try a simple ListObjects operation to see if we can at least read the bucket
+                        logger.info(f"Access denied to head_bucket. Trying to list objects instead.")
                         self.s3.list_objects_v2(Bucket=bucket_name, MaxKeys=1)
                         logger.info(f"Limited access to bucket {bucket_name}, but can list objects")
                         return True
                     except ClientError as list_error:
-                        logger.warning(f"No access to bucket {bucket_name}: {str(list_error)}")
+                        if 'Error' in list_error.response:
+                            list_error_code = list_error.response['Error'].get('Code', 'Unknown')
+                            list_error_msg = list_error.response['Error'].get('Message', 'No details')
+                            logger.warning(f"No access to bucket {bucket_name}: Code={list_error_code}, Message={list_error_msg}")
+                        else:
+                            logger.warning(f"No access to bucket {bucket_name}: {str(list_error)}")
                         return False
                 else:
                     # Some other error we can't handle
-                    logger.error(f"Error checking bucket {bucket_name}: {str(e)}")
+                    logger.error(f"Error checking bucket {bucket_name}: Code={error_code}, Message={error_msg}")
                     return False
                     
         except Exception as e:

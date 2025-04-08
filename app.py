@@ -419,6 +419,123 @@ def api_upload_document():
     else:
         return jsonify({'error': 'Failed to upload document'}), 500
 
+def _get_s3_status_info():
+    """
+    Helper function to get S3 status information for both API and UI.
+    """
+    from document_service import s3_available, init_s3_bucket
+    from aws_services import S3Service, AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION
+    import os
+    
+    # Get environment variables
+    aws_region = os.environ.get("AWS_REGION", "us-east-1")
+    bucket_name = os.environ.get("S3_DOCUMENT_BUCKET", "adv-rag-app")
+    has_aws_key = "Yes" if os.environ.get("AWS_ACCESS_KEY_ID") else "No"
+    has_aws_secret = "Yes" if os.environ.get("AWS_SECRET_ACCESS_KEY") else "No"
+    
+    # Test global variables
+    aws_global_key = "Yes" if AWS_ACCESS_KEY else "No"
+    aws_global_secret = "Yes" if AWS_SECRET_KEY else "No"
+    aws_global_region = AWS_REGION
+    
+    # Initialize S3 bucket (this will update logs)
+    current_s3_status = s3_available
+    init_s3_bucket()
+    new_s3_status = s3_available
+    
+    # Try a simple operation
+    s3_service = S3Service()
+    try:
+        s3_client = s3_service.s3
+        bucket_exists = False
+        try:
+            s3_client.head_bucket(Bucket=bucket_name)
+            bucket_exists = True
+            bucket_status = "Exists and accessible"
+        except Exception as bucket_error:
+            bucket_status = f"Error accessing bucket: {str(bucket_error)}"
+    except Exception as s3_error:
+        bucket_status = f"Error creating S3 client: {str(s3_error)}"
+    
+    # Check for common error messages to give more specific guidance
+    permissions_needed = []
+    if "AccessDenied" in bucket_status or "403 Forbidden" in bucket_status:
+        permissions_needed = [
+            "s3:HeadBucket",
+            "s3:ListBucket",
+            "s3:CreateBucket",
+            "s3:GetObject",
+            "s3:PutObject",
+            "s3:DeleteObject"
+        ]
+    
+    result = {
+        "environment_variables": {
+            "AWS_REGION": aws_region,
+            "S3_DOCUMENT_BUCKET": bucket_name,
+            "AWS_ACCESS_KEY_ID": has_aws_key,
+            "AWS_SECRET_ACCESS_KEY": has_aws_secret
+        },
+        "global_variables": {
+            "AWS_ACCESS_KEY": aws_global_key,
+            "AWS_SECRET_KEY": aws_global_secret,
+            "AWS_REGION": aws_global_region
+        },
+        "s3_status": {
+            "before_init": current_s3_status,
+            "after_init": new_s3_status,
+            "bucket_status": bucket_status
+        }
+    }
+    
+    if permissions_needed:
+        result["troubleshooting"] = {
+            "required_permissions": permissions_needed,
+            "policy_example": """
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:HeadBucket",
+                "s3:ListBucket",
+                "s3:CreateBucket"
+            ],
+            "Resource": "arn:aws:s3:::adv-rag-app"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:DeleteObject"
+            ],
+            "Resource": "arn:aws:s3:::adv-rag-app/*"
+        }
+    ]
+}
+"""
+        }
+    
+    return result
+
+@app.route('/storage-troubleshoot')
+def storage_troubleshoot():
+    """
+    User-friendly page to diagnose and troubleshoot S3 connection issues.
+    """
+    status = _get_s3_status_info()
+    return render_template('storage_troubleshoot.html', status=status)
+    
+@app.route('/api/test-s3', methods=['GET'])
+def test_s3_connection():
+    """
+    Test endpoint to diagnose S3 connection issues.
+    """
+    result = _get_s3_status_info()
+    return jsonify(result)
+
 @app.route('/api/documents/<int:document_id>', methods=['GET'])
 def api_get_document(document_id):
     """

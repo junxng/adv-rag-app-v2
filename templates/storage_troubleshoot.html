@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+
+{% block title %}Storage Troubleshooting{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="mb-4">AWS S3 Storage Troubleshooting</h2>
+            
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Environment Status</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Environment Variables</h6>
+                            <ul class="list-group">
+                                {% for key, value in status.environment_variables.items() %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    {{ key }}
+                                    {% if value == "Yes" %}
+                                    <span class="badge bg-success rounded-pill">✓</span>
+                                    {% elif value == "No" %}
+                                    <span class="badge bg-danger rounded-pill">✗</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary rounded-pill">{{ value }}</span>
+                                    {% endif %}
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>AWS Connectivity</h6>
+                            <ul class="list-group">
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    S3 Available
+                                    {% if status.s3_status.after_init %}
+                                    <span class="badge bg-success rounded-pill">Yes</span>
+                                    {% else %}
+                                    <span class="badge bg-danger rounded-pill">No</span>
+                                    {% endif %}
+                                </li>
+                                <li class="list-group-item">
+                                    <strong>Bucket Status:</strong>
+                                    <div class="mt-2">
+                                        {% if 'Error' in status.s3_status.bucket_status %}
+                                        <div class="alert alert-danger">{{ status.s3_status.bucket_status }}</div>
+                                        {% else %}
+                                        <div class="alert alert-success">{{ status.s3_status.bucket_status }}</div>
+                                        {% endif %}
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            {% if status.troubleshooting is defined and status.troubleshooting.required_permissions %}
+            <div class="card mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">Permissions Issue Detected</h5>
+                </div>
+                <div class="card-body">
+                    <p class="alert alert-warning">
+                        <strong>Access Denied Error:</strong> The AWS IAM user associated with your credentials 
+                        doesn't have sufficient permissions to access or create the S3 bucket.
+                    </p>
+                    
+                    <h6>Required Permissions</h6>
+                    <ul class="list-group mb-3">
+                        {% for permission in status.troubleshooting.required_permissions %}
+                        <li class="list-group-item">{{ permission }}</li>
+                        {% endfor %}
+                    </ul>
+                    
+                    <h6>Example IAM Policy</h6>
+                    <p>Add the following policy to your IAM user:</p>
+                    <div class="bg-dark text-white p-3 rounded">
+                        <pre>{{ status.troubleshooting.policy_example }}</pre>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Troubleshooting Steps</h5>
+                </div>
+                <div class="card-body">
+                    <ol class="list-group list-group-numbered">
+                        <li class="list-group-item">Verify your AWS credentials are correct and active</li>
+                        <li class="list-group-item">Ensure your IAM user has the necessary S3 permissions (listed above)</li>
+                        <li class="list-group-item">Check if the S3 bucket name already exists and is owned by another account</li>
+                        <li class="list-group-item">Verify the AWS region matches the bucket's region</li>
+                        <li class="list-group-item">Try creating the bucket manually in the AWS Console</li>
+                    </ol>
+                    
+                    <div class="mt-4">
+                        <a href="/documents" class="btn btn-primary">Return to Documents</a>
+                        <a href="javascript:window.location.reload()" class="btn btn-secondary">Refresh Status</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

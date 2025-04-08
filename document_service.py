@@ -29,6 +29,15 @@ def init_s3_bucket():
     """
     global s3_available
     
+    # Log environment variables (without exposing secrets)
+    aws_region = os.environ.get("AWS_REGION", "us-east-1")
+    bucket_name = os.environ.get("S3_DOCUMENT_BUCKET", S3_DOCUMENT_BUCKET)
+    has_aws_key = "Yes" if os.environ.get("AWS_ACCESS_KEY_ID") else "No"
+    has_aws_secret = "Yes" if os.environ.get("AWS_SECRET_ACCESS_KEY") else "No"
+    
+    logger.info(f"S3 Configuration: Region={aws_region}, Bucket={bucket_name}")
+    logger.info(f"AWS Credentials Available: Access Key={has_aws_key}, Secret Key={has_aws_secret}")
+    
     try:
         logger.info(f"Initializing S3 bucket: {S3_DOCUMENT_BUCKET}")
         s3_service = S3Service()
@@ -37,7 +46,7 @@ def init_s3_bucket():
         try:
             logger.info("Checking if bucket exists...")
             s3_client = boto3.client('s3',
-                region_name=os.environ.get("AWS_REGION", "us-east-1"),
+                region_name=aws_region,
                 aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
                 aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY")
             )
@@ -47,12 +56,18 @@ def init_s3_bucket():
             return
         except botocore.exceptions.ClientError as e:
             error_code = e.response.get('Error', {}).get('Code')
+            error_message = e.response.get('Error', {}).get('Message', 'No message')
+            logger.warning(f"S3 ClientError: Code={error_code}, Message={error_message}")
+            
             if error_code == '404' or error_code == 'NoSuchBucket':
                 logger.warning(f"Bucket does not exist: {S3_DOCUMENT_BUCKET}. Will try to create it.")
             else:
                 logger.warning(f"Error checking bucket: {error_code}. Will try to create it.")
+        except Exception as bucket_error:
+            logger.error(f"Unexpected error when checking bucket: {str(bucket_error)}")
         
         # Try to create the bucket if it doesn't exist
+        logger.info("Attempting to create bucket if it doesn't exist...")
         success = s3_service.create_bucket_if_not_exists(S3_DOCUMENT_BUCKET)
         if success:
             logger.info(f"S3 bucket initialized successfully: {S3_DOCUMENT_BUCKET}")
@@ -65,6 +80,22 @@ def init_s3_bucket():
         logger.error(f"Error initializing S3 bucket: {str(e)}")
         logger.warning("Document storage will be disabled. Please check AWS credentials and permissions.")
         s3_available = False
+        
+    # Final status
+    status_message = "Available" if s3_available else "Unavailable"
+    
+    # Add more specific error information for the UI
+    if not s3_available:
+        # No need for specific error classification here, the logging was already done above
+        logger.warning("Document storage is unavailable. Check the logs for details.")
+        
+        # Common troubleshooting info for users
+        logger.info("Common issues with S3 access:")
+        logger.info("1. AWS credentials may not have the proper S3 permissions")
+        logger.info("2. The bucket name may already be taken by another AWS account")
+        logger.info("3. The AWS region may not be configured correctly")
+    
+    logger.info(f"S3 availability status: {status_message}")
 
 def allowed_file(filename):
     """
