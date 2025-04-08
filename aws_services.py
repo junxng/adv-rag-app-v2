@@ -254,53 +254,75 @@ class S3Service:
         
     def create_bucket_if_not_exists(self, bucket_name):
         """
-        Create an S3 bucket if it doesn't already exist.
+        Create an S3 bucket if it doesn't already exist or check if we can use an existing one.
         
         Args:
-            bucket_name (str): The name of the bucket to create
+            bucket_name (str): The name of the bucket to create or use
             
         Returns:
-            bool: True if successful, False otherwise
+            bool: True if bucket exists and is usable, False otherwise
         """
         try:
-            # First, try to check if bucket exists by attempting to use it
+            # First, try to check if bucket exists and we can use it
             # This avoids needing to list all buckets (which requires additional permissions)
             try:
                 self.s3.head_bucket(Bucket=bucket_name)
-                logger.info(f"Bucket {bucket_name} already exists")
+                logger.info(f"Bucket {bucket_name} exists and is accessible")
                 return True
             except ClientError as e:
-                # If we get a 404, the bucket doesn't exist
-                # If we get a 403, the bucket exists but we don't have access or it belongs to someone else
-                error_code = int(e.response['Error']['Code'])
-                if error_code == 404:
-                    # Bucket doesn't exist, so create it
-                    logger.info(f"Bucket {bucket_name} doesn't exist, creating it")
-                elif error_code == 403:
-                    # Bucket exists but belongs to another account or we don't have access
-                    logger.warning(f"Bucket {bucket_name} exists but you don't have access to it")
+                # Check if we can handle this error
+                if 'Error' not in e.response:
+                    logger.error(f"Unexpected error structure: {str(e)}")
                     return False
+                    
+                error_code = str(e.response['Error']['Code'])
+                if error_code == '404':
+                    # Bucket doesn't exist, try to create it
+                    logger.info(f"Bucket {bucket_name} doesn't exist, attempting to create it")
+                    try:
+                        if AWS_REGION == 'us-east-1':
+                            self.s3.create_bucket(Bucket=bucket_name)
+                        else:
+                            self.s3.create_bucket(
+                                Bucket=bucket_name,
+                                CreateBucketConfiguration={
+                                    'LocationConstraint': AWS_REGION
+                                }
+                            )
+                        logger.info(f"Bucket {bucket_name} created successfully")
+                        return True
+                    except ClientError as create_error:
+                        # If we can't create the bucket, log the error
+                        logger.error(f"Error creating S3 bucket: {str(create_error)}")
+                        
+                        # Try to see if we can still access objects in the bucket
+                        # This is useful if the bucket exists in another account but we have limited permissions
+                        try:
+                            # Try a simple ListObjects operation to see if we can at least read the bucket
+                            self.s3.list_objects_v2(Bucket=bucket_name, MaxKeys=1)
+                            logger.info(f"Cannot create bucket {bucket_name}, but can list objects")
+                            return True
+                        except ClientError:
+                            # If we can't even list objects, then we really can't use this bucket
+                            return False
+                elif error_code == '403':
+                    # Bucket exists but we don't have full access
+                    # Let's check if we can at least perform basic operations
+                    try:
+                        # Try a simple ListObjects operation to see if we can at least read the bucket
+                        self.s3.list_objects_v2(Bucket=bucket_name, MaxKeys=1)
+                        logger.info(f"Limited access to bucket {bucket_name}, but can list objects")
+                        return True
+                    except ClientError as list_error:
+                        logger.warning(f"No access to bucket {bucket_name}: {str(list_error)}")
+                        return False
                 else:
-                    # Some other error
-                    raise
-            
-            # Create the bucket
-            if AWS_REGION == 'us-east-1':
-                self.s3.create_bucket(
-                    Bucket=bucket_name
-                )
-            else:
-                self.s3.create_bucket(
-                    Bucket=bucket_name,
-                    CreateBucketConfiguration={
-                        'LocationConstraint': AWS_REGION
-                    }
-                )
-            logger.info(f"Bucket {bucket_name} created successfully")
-            return True
-            
-        except ClientError as e:
-            logger.error(f"Error creating S3 bucket: {str(e)}")
+                    # Some other error we can't handle
+                    logger.error(f"Error checking bucket {bucket_name}: {str(e)}")
+                    return False
+                    
+        except Exception as e:
+            logger.error(f"Unexpected error with S3 bucket: {str(e)}")
             return False
     
     def upload_file(self, file_path, bucket_name, object_key):
