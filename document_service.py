@@ -10,7 +10,36 @@ from models import Document, db
 logger = logging.getLogger(__name__)
 
 # Constants
-S3_DOCUMENT_BUCKET = os.environ.get("S3_DOCUMENT_BUCKET", "tech-support-documents")
+# Use a safe bucket name that follows S3 naming conventions
+S3_DOCUMENT_BUCKET = os.environ.get("S3_DOCUMENT_BUCKET")
+if not S3_DOCUMENT_BUCKET:
+    logger.warning("S3_DOCUMENT_BUCKET not set in environment variables")
+    # Create a unique but deterministic bucket name based on AWS account ID
+    # This avoids conflicts with globally unique bucket names
+    import hashlib
+    import boto3
+    
+    try:
+        # Try to get AWS account ID to make a unique bucket name
+        sts = boto3.client('sts',
+            region_name=os.environ.get("AWS_REGION", "us-east-1"),
+            aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY")
+        )
+        account_id = sts.get_caller_identity()["Account"]
+        logger.info(f"Using AWS Account ID: {account_id} for bucket name generation")
+        
+        # Create a hash of the account ID to ensure uniqueness while being deterministic
+        hash_obj = hashlib.md5(account_id.encode())
+        hash_suffix = hash_obj.hexdigest()[:8]
+        S3_DOCUMENT_BUCKET = f"tech-support-docs-{hash_suffix}"
+    except Exception as e:
+        logger.warning(f"Could not determine AWS account ID: {str(e)}")
+        # Fall back to a generic name
+        S3_DOCUMENT_BUCKET = "tech-support-documents"
+        
+logger.info(f"Using S3 bucket for document storage: {S3_DOCUMENT_BUCKET}")
+    
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg', 'gif'}
 MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB
 
