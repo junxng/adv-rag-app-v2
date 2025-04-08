@@ -1,6 +1,6 @@
 # Advanced RAG Application
 
-This is an advanced RAG (Retrieval-Augmented Generation) application that uses FastAPI, Pinecone, and DynamoDB.
+This is an advanced RAG (Retrieval-Augmented Generation) application that uses FastAPI, Pinecone, and DynamoDB with comprehensive MLOps practices for monitoring, testing, and deployment.
 
 ## Project Structure
 
@@ -148,8 +148,12 @@ FastAPI automatically generates API documentation. You can access it at:
 - Vector search using Pinecone
 - DynamoDB integration for user data
 - Document management with S3
-- Monitoring and feedback collection
+- Monitoring and feedback collection with Langfuse
 - Admin dashboard for analytics
+- Comprehensive testing framework
+- Docker and Docker Compose support
+- CI/CD with GitHub Actions
+- MLOps best practices implementation
 
 ## Using Pinecone
 
@@ -162,3 +166,28 @@ This application uses Pinecone as the primary vector database. Make sure you hav
 ## Fallback to FAISS
 
 If Pinecone is not available, the application will fall back to using FAISS as a local vector store. You can control this behavior with the `USE_FAISS_FALLBACK` environment variable.
+
+## MLOps Implementation
+
+This project implements MLOps best practices for reliable and scalable AI applications:
+
+1. **Monitoring and Observability**:
+   - Langfuse integration for LLM observability
+   - Structured logging for better debugging
+   - Performance metrics tracking
+
+2. **Testing Framework**:
+   - Unit tests for individual components
+   - Integration tests for service interactions
+   - Mocked AWS services for testing
+
+3. **CI/CD Pipeline**:
+   - GitHub Actions for automated testing
+   - Docker builds for consistent environments
+   - Deployment automation
+
+4. **Infrastructure as Code**:
+   - Docker Compose for local development
+   - Containerized services for portability
+
+For more details, see the [MLOps documentation](docs/mlops.md).
