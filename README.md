@@ -5,44 +5,94 @@ This is an advanced RAG (Retrieval-Augmented Generation) application that uses F
 ## Project Structure
 
 ```text
-.
+adv-rag-app-v2/
 ├── backend/
 │   ├── app/
+│   │   ├── api/                      # API routes organized by domain
+│   │   │   ├── __init__.py
+│   │   │   ├── chat.py               # Chat endpoints
+│   │   │   ├── documents.py          # Document management endpoints
+│   │   │   ├── admin.py              # Admin dashboard endpoints
+│   │   │   └── feedback.py           # Feedback endpoints
+│   │   ├── core/                     # Core application components
+│   │   │   ├── __init__.py
+│   │   │   ├── config.py             # Configuration management
+│   │   │   ├── security.py           # Authentication and authorization
+│   │   │   └── logging.py            # Logging configuration
+│   │   ├── db/                       # Database related code
+│   │   │   ├── __init__.py
+│   │   │   ├── base.py               # Base database setup
+│   │   │   ├── models.py             # SQLAlchemy models
+│   │   │   └── schemas.py            # Pydantic schemas
+│   │   ├── services/                 # Business logic services
+│   │   │   ├── __init__.py
+│   │   │   ├── aws_service.py        # AWS integration (S3, DynamoDB)
+│   │   │   ├── vector_service.py     # Vector store operations
+│   │   │   ├── document_service.py   # Document processing
+│   │   │   ├── chat_service.py       # Chat processing
+│   │   │   └── monitoring_service.py # Monitoring and analytics
+│   │   ├── ml/                       # Machine learning components
+│   │   │   ├── __init__.py
+│   │   │   ├── query_classifier.py   # Query classification
+│   │   │   ├── embeddings.py         # Embedding generation
+│   │   │   └── llm_service.py        # LLM integration
+│   │   ├── static/                   # Static files
+│   │   ├── templates/                # HTML templates
 │   │   ├── __init__.py
-│   │   ├── main.py
-│   │   ├── models.py
-│   │   ├── schemas.py
-│   │   ├── database.py
-│   │   ├── services.py
-│   │   ├── vector_store.py
-│   │   ├── pinecone_service.py
-│   │   ├── aws_services.py
-│   │   ├── document_service.py
-│   │   ├── query_classifier.py
-│   │   ├── data_sources.py
-│   │   ├── monitoring.py
-│   │   ├── templates/
-│   │   └── static/
-│   ├── main.py
-│   ├── requirements.txt
-│   └── .env
+│   │   └── main.py                   # FastAPI application
+│   ├── tests/                        # Test directory
+│   │   ├── __init__.py
+│   │   ├── conftest.py               # Test configuration
+│   │   ├── unit/                     # Unit tests
+│   │   │   ├── __init__.py
+│   │   │   ├── test_query_classifier.py
+│   │   │   └── test_vector_store.py
+│   │   └── integration/              # Integration tests
+│   │       ├── __init__.py
+│   │       ├── test_dynamodb.py
+│   │       ├── test_langfuse.py
+│   │       └── test_api.py
+│   ├── scripts/                      # Utility scripts
+│   │   ├── seed_data.py              # Seed database with sample data
+│   │   └── setup_aws.py              # Set up AWS resources
+│   ├── requirements/                 # Split requirements by environment
+│   │   ├── base.txt                  # Base requirements
+│   │   ├── dev.txt                   # Development requirements
+│   │   └── prod.txt                  # Production requirements
+│   ├── Dockerfile                    # Docker configuration for backend
+│   ├── .env.example                  # Example environment variables
+│   └── main.py                       # Entry point
 ├── frontend/
 │   ├── src/
-│   │   ├── app/
-│   │   │   ├── layout.tsx
-│   │   │   ├── page.tsx
-│   │   │   └── globals.css
-│   │   └── components/
-│   │       ├── ChatMessage.tsx
-│   │       └── ChatInput.tsx
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── next.config.js
-│   ├── postcss.config.js
-│   ├── tailwind.config.js
-│   └── .env.local
-├── .gitignore
-└── README.md
+│   │   ├── app/                      # Next.js app directory
+│   │   ├── components/               # React components
+│   │   │   ├── chat/                 # Chat components
+│   │   │   ├── documents/            # Document management components
+│   │   │   └── admin/                # Admin dashboard components
+│   │   ├── hooks/                    # Custom React hooks
+│   │   ├── lib/                      # Utility functions
+│   │   ├── services/                 # API service clients
+│   │   └── types/                    # TypeScript type definitions
+│   ├── public/                       # Static assets
+│   ├── Dockerfile                    # Docker configuration for frontend
+│   └── .env.example                  # Example environment variables
+├── infra/                            # Infrastructure as code
+│   ├── terraform/                    # Terraform configuration
+│   │   ├── main.tf                   # Main Terraform configuration
+│   │   ├── variables.tf              # Terraform variables
+│   │   └── outputs.tf                # Terraform outputs
+│   └── docker-compose.yml            # Docker Compose for local development
+├── .github/                          # GitHub workflows
+│   └── workflows/
+│       ├── ci.yml                    # CI workflow
+│       └── cd.yml                    # CD workflow
+├── docs/                             # Documentation
+│   ├── architecture.md               # Architecture documentation
+│   ├── setup.md                      # Setup instructions
+│   └── mlops.md                      # MLOps documentation
+├── .gitignore                        # Git ignore file
+├── README.md                         # Project README
+└── LICENSE                           # License file
 ```
 
 ## Prerequisites
