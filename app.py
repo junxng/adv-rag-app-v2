@@ -38,7 +38,40 @@ with app.app_context():
     from document_service import init_s3_bucket
     init_s3_bucket()
     
-    # Initialize the database with some sample data if needed
+    # Try to initialize DynamoDB tables if AWS credentials are available
+    try:
+        aws_access_key = os.environ.get("AWS_ACCESS_KEY_ID")
+        aws_secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
+        
+        if aws_access_key and aws_secret_key:
+            logger.info("AWS credentials found, initializing DynamoDB tables")
+            from aws_services import DynamoDBService
+            dynamodb_service = DynamoDBService()
+            dynamodb_service.create_tables_if_not_exist()
+            
+            # Seed DynamoDB with sample data if no data exists
+            # First check if users table exists and has data
+            try:
+                existing_tables = dynamodb_service.client.list_tables()['TableNames']
+                if 'Users' in existing_tables:
+                    # Check if there are any users in the table
+                    result = dynamodb_service.client.scan(
+                        TableName='Users',
+                        Limit=1
+                    )
+                    if 'Items' not in result or len(result['Items']) == 0:
+                        logger.info("No users found in DynamoDB, seeding sample data")
+                        dynamodb_service.seed_sample_data()
+                    else:
+                        logger.info("DynamoDB already contains user data, skipping seed")
+            except Exception as e:
+                logger.warning(f"Error checking DynamoDB data: {str(e)}")
+        else:
+            logger.info("AWS credentials not found, DynamoDB initialization skipped")
+    except Exception as e:
+        logger.warning(f"Error initializing DynamoDB: {str(e)}")
+    
+    # Initialize the PostgreSQL database with some sample data if needed
     from models import User, SupportTicket, KnowledgeArticle
     
     # Check if data already exists

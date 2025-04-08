@@ -194,11 +194,18 @@ def search_tavily(question, chat_history=None):
         str: The formatted response with troubleshooting information
     """
     try:
-        # If using a real Tavily API, we would call it here
-        # Since we're in a demo environment, we'll simulate a response
-        # In a real implementation, we would use the Tavily API directly
+        # Get Tavily API key
+        tavily_api_key = os.environ.get("TAVILY_API_KEY")
         
-        search_results = simulate_tavily_search(question)
+        # Decide whether to use real Tavily API or simulated response
+        if tavily_api_key and tavily_api_key != "default_key":
+            # Use the real Tavily API
+            search_results = query_tavily_api(question)
+            logger.info("Using real Tavily API for web search")
+        else:
+            # Fall back to simulated search
+            search_results = simulate_tavily_search(question)
+            logger.info("Using simulated Tavily search (TAVILY_API_KEY not configured)")
         
         # Create a prompt for the AI to synthesize the search results
         prompt = f"""
@@ -214,6 +221,7 @@ def search_tavily(question, chat_history=None):
         Include specific technical steps when available.
         Cite the source of information when appropriate.
         Be conversational but precise, and don't make up information.
+        If the search results don't directly answer the question, acknowledge that and provide general guidance.
         """
         
         # Check if OpenAI client is available
@@ -234,10 +242,73 @@ def search_tavily(question, chat_history=None):
         logger.error(f"Error searching Tavily: {str(e)}")
         return "I'm having trouble searching for troubleshooting information right now. Please try again later."
 
+def query_tavily_api(question):
+    """
+    Queries the Tavily API for web search results.
+    
+    Args:
+        question (str): The user's technical question
+        
+    Returns:
+        list: List of search result objects
+    """
+    try:
+        # Get Tavily API key
+        tavily_api_key = os.environ.get("TAVILY_API_KEY")
+        
+        if not tavily_api_key:
+            logger.error("No Tavily API key found")
+            return simulate_tavily_search(question)
+            
+        # Tavily API endpoint
+        endpoint = "https://api.tavily.com/search"
+        
+        # Prepare the request
+        headers = {
+            "Content-Type": "application/json",
+            "X-API-Key": tavily_api_key
+        }
+        
+        data = {
+            "query": question,
+            "search_depth": "basic",  # or "advanced" for more comprehensive results
+            "include_domains": [],  # Optional: specify domains to include
+            "exclude_domains": [],  # Optional: specify domains to exclude
+            "max_results": 5  # Number of results to return
+        }
+        
+        # Send the request
+        response = requests.post(endpoint, headers=headers, json=data, timeout=10)
+        
+        # Check if the request was successful
+        if response.status_code == 200:
+            result = response.json()
+            
+            # Process and format the results
+            formatted_results = []
+            for item in result.get("results", []):
+                formatted_results.append({
+                    "title": item.get("title", "No title"),
+                    "content": item.get("content", "No content"),
+                    "url": item.get("url", "#")
+                })
+                
+            return formatted_results
+            
+        else:
+            logger.error(f"Tavily API error: {response.status_code}: {response.text}")
+            # Fall back to simulated search on API error
+            return simulate_tavily_search(question)
+            
+    except Exception as e:
+        logger.error(f"Error querying Tavily API: {str(e)}")
+        # Fall back to simulated search on exception
+        return simulate_tavily_search(question)
+
 def simulate_tavily_search(query):
     """
     Simulates a Tavily search response for demonstration purposes.
-    In a real implementation, this would be replaced with actual Tavily API calls.
+    Used as a fallback when Tavily API is not available.
     """
     # Create a simulated search response based on the query
     if "wifi" in query.lower() or "network" in query.lower():
