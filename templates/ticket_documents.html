@@ -1,165 +1,236 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ticket Documents - Tech Support Chatbot</title>
-    <link rel="stylesheet" href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css">
-    <style>
-        .document-card {
-            transition: transform 0.2s ease;
-        }
-        .document-card:hover {
-            transform: translateY(-5px);
-        }
-        .upload-area {
-            border: 2px dashed var(--bs-border-color);
-            border-radius: 8px;
-            padding: 2rem;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        .upload-area:hover, .upload-area.drag-active {
-            border-color: var(--bs-primary);
-            background-color: rgba(var(--bs-primary-rgb), 0.1);
-        }
-    </style>
-</head>
-<body>
-    <div class="container py-4">
-        <header class="pb-3 mb-4 border-bottom">
-            <div class="d-flex align-items-center">
-                <h1 class="me-auto">Ticket Documents</h1>
-                <a href="/documents" class="btn btn-outline-secondary me-2">All Documents</a>
-                <a href="/" class="btn btn-outline-primary">Back to Chat</a>
-            </div>
-        </header>
+{% extends 'base.html' %}
 
-        <div class="card mb-4">
-            <div class="card-body">
-                <h5 class="card-title">Ticket Information</h5>
-                <div class="row">
-                    <div class="col-md-6">
-                        <p><strong>Ticket ID:</strong> #{{ ticket.id }}</p>
-                        <p><strong>Title:</strong> {{ ticket.title }}</p>
-                        <p><strong>Status:</strong> <span class="badge {% if ticket.status == 'open' %}bg-success{% elif ticket.status == 'in progress' %}bg-warning{% else %}bg-secondary{% endif %}">{{ ticket.status }}</span></p>
-                    </div>
-                    <div class="col-md-6">
-                        <p><strong>Priority:</strong> {{ ticket.priority }}</p>
-                        <p><strong>Created:</strong> {{ ticket.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
-                        {% if ticket.closed_at %}
-                        <p><strong>Closed:</strong> {{ ticket.closed_at.strftime('%Y-%m-%d %H:%M') }}</p>
-                        {% endif %}
-                    </div>
-                </div>
-                <p><strong>Description:</strong> {{ ticket.description }}</p>
-                {% if ticket.resolution %}
-                <p><strong>Resolution:</strong> {{ ticket.resolution }}</p>
-                {% endif %}
-            </div>
+{% block title %}Ticket Documents{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Home</a></li>
+            <li class="breadcrumb-item active">Ticket #{{ ticket.id }} Documents</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Documents for Ticket #{{ ticket.id }}</h1>
+        <a href="{{ url_for('document_list') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to All Documents
+        </a>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">Ticket Details</h5>
         </div>
-
-        <div class="row mb-4">
-            <div class="col-md-12">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">Upload New Document for This Ticket</h5>
-                        <div id="upload-area" class="upload-area mt-3">
-                            <div id="upload-prompt">
-                                <i class="bi bi-cloud-arrow-up fs-1"></i>
-                                <p>Drag and drop files here, or click to browse</p>
-                                <p class="text-muted small">Max file size: 16MB. Allowed formats: PDF, DOC, DOCX, TXT, XLS, XLSX, PNG, JPG, JPEG, GIF</p>
-                            </div>
-                            <div id="upload-progress" class="d-none">
-                                <div class="progress">
-                                    <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
-                                </div>
-                                <p id="upload-status" class="mt-2">Uploading...</p>
-                            </div>
-                        </div>
-                        <input type="file" id="file-input" hidden>
-                        <div class="form-check mt-3">
-                            <input class="form-check-input" type="checkbox" id="is-public">
-                            <label class="form-check-label" for="is-public">
-                                Make document public
-                            </label>
-                        </div>
-                        <button id="upload-button" class="btn btn-primary mt-3">Upload</button>
-                    </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Title:</h6>
+                    <p>{{ ticket.title }}</p>
+                </div>
+                <div class="col-md-6">
+                    <h6>Status:</h6>
+                    <span class="badge bg-{{ 'success' if ticket.status == 'closed' else 'warning' if ticket.status == 'in progress' else 'primary' }}">
+                        {{ ticket.status|capitalize }}
+                    </span>
                 </div>
             </div>
-        </div>
-
-        <h2 class="mb-4">Ticket Documents</h2>
-        <div class="row" id="documents-container">
-            {% if documents %}
-                {% for document in documents %}
-                <div class="col-md-4 mb-4">
-                    <div class="card document-card h-100">
-                        <div class="card-body">
-                            <h5 class="card-title text-truncate">{{ document.original_filename }}</h5>
-                            <p class="card-text">
-                                <small class="text-muted">
-                                    {{ (document.file_size / 1024)|round(1) }} KB
-                                    <br>
-                                    Uploaded {{ document.created_at.strftime('%Y-%m-%d %H:%M') }}
-                                </small>
-                            </p>
-                            <div class="d-flex">
-                                <a href="{{ document.get_download_url() }}" class="btn btn-outline-primary btn-sm me-2">Download</a>
-                                <button class="btn btn-outline-danger btn-sm delete-document" data-document-id="{{ document.id }}">Delete</button>
-                            </div>
-                        </div>
-                    </div>
+            <div class="row mt-3">
+                <div class="col-md-6">
+                    <h6>Priority:</h6>
+                    <span class="badge bg-{{ 'danger' if ticket.priority == 'high' else 'warning' if ticket.priority == 'medium' else 'info' }}">
+                        {{ ticket.priority|capitalize }}
+                    </span>
                 </div>
-                {% endfor %}
-            {% else %}
-                <div class="col-12">
-                    <div class="alert alert-info">
-                        No documents found for this ticket. Use the upload form above to add some.
-                    </div>
+                <div class="col-md-6">
+                    <h6>Created:</h6>
+                    <p>{{ ticket.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
                 </div>
+            </div>
+            {% if ticket.description %}
+            <div class="mt-3">
+                <h6>Description:</h6>
+                <p>{{ ticket.description }}</p>
+            </div>
             {% endif %}
         </div>
     </div>
 
-    <!-- Confirmation Modal -->
-    <div class="modal fade" id="deleteModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Confirm Delete</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    {% if not s3_available %}
+    <div class="alert alert-warning" role="alert">
+        <h4 class="alert-heading">Document Storage Unavailable</h4>
+        <p>S3 document storage is currently not available. Document upload and management features are disabled.</p>
+        <hr>
+        <p class="mb-0">Please check your AWS credentials and S3 bucket configuration. Make sure you have the proper S3 permissions set up.</p>
+    </div>
+    {% else %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Upload New Document</h5>
+        </div>
+        <div class="card-body">
+            <div id="upload-area" class="border rounded p-3 mb-3 text-center bg-light">
+                <div id="upload-prompt">
+                    <i class="bi bi-cloud-arrow-up fs-3"></i>
+                    <p class="mt-2">Drag & drop files here or click to select files</p>
+                    <button id="upload-button" class="btn btn-primary mt-2">Select Files</button>
+                    <input id="file-input" type="file" style="display: none;">
                 </div>
-                <div class="modal-body">
-                    Are you sure you want to delete this document? This action cannot be undone.
+                <div id="upload-progress" style="display: none;">
+                    <div class="progress" style="height: 25px;">
+                        <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <p id="upload-status" class="mt-2">Uploading...</p>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-danger" id="confirm-delete">Delete</button>
-                </div>
+            </div>
+            
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="is-public">
+                <label class="form-check-label" for="is-public">
+                    Make document publicly accessible
+                </label>
             </div>
         </div>
     </div>
+    {% endif %}
+
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Ticket Documents</h5>
+        </div>
+        <div class="card-body">
+            {% if documents %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Filename</th>
+                            <th>Size</th>
+                            <th>Type</th>
+                            <th>Uploaded</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for document in documents %}
+                        <tr data-document-id="{{ document.id }}">
+                            <td>{{ document.original_filename }}</td>
+                            <td>{{ (document.file_size / 1024)|round(1) }} KB</td>
+                            <td>{{ document.mime_type }}</td>
+                            <td>{{ document.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <a href="{{ url_for('download_document', document_id=document.id) }}" class="btn btn-outline-primary">
+                                        <i class="bi bi-download"></i> Download
+                                    </a>
+                                    <button type="button" class="btn btn-outline-danger delete-document">
+                                        <i class="bi bi-trash"></i> Delete
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> This ticket doesn't have any documents yet.
+                {% if s3_available %}
+                Upload your first document using the form above.
+                {% else %}
+                Document upload is currently unavailable.
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteDocumentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this document? This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener("DOMContentLoaded", function() {
-            // Check if document elements exist before setting up handlers
-            const uploadArea = document.getElementById("upload-area");
-            if (!uploadArea) {
-                console.log("Upload area not found, S3 may be unavailable");
+            // Check if S3 is available first
+            const s3Available = {{ s3_available|tojson }};
+            
+            // Document deletion handling (works with or without S3)
+            const deleteModal = document.getElementById('deleteDocumentModal');
+            if (deleteModal) {
+                const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+                const deleteButtons = document.querySelectorAll('.delete-document');
+                let documentToDelete = null;
+                
+                deleteButtons.forEach(button => {
+                    button.addEventListener('click', function() {
+                        const row = this.closest('tr');
+                        documentToDelete = row.dataset.documentId;
+                        const modal = new bootstrap.Modal(deleteModal);
+                        modal.show();
+                    });
+                });
+                
+                if (confirmDeleteBtn) {
+                    confirmDeleteBtn.addEventListener('click', function() {
+                        if (!documentToDelete) return;
+                        
+                        fetch(`/api/documents/${documentToDelete}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        })
+                        .then(response => {
+                            if (response.ok) {
+                                const row = document.querySelector(`tr[data-document-id="${documentToDelete}"]`);
+                                if (row) row.remove();
+                                bootstrap.Modal.getInstance(deleteModal).hide();
+                                
+                                // If no documents are left, show the empty state
+                                const rows = document.querySelectorAll('tbody tr');
+                                if (rows.length === 0) {
+                                    document.querySelector('.card-body').innerHTML = `
+                                    <div class="alert alert-info">
+                                        <i class="bi bi-info-circle"></i> This ticket doesn't have any documents yet.
+                                        ${s3Available ? 'Upload your first document using the form above.' : 'Document upload is currently unavailable.'}
+                                    </div>`;
+                                }
+                            } else {
+                                alert('Failed to delete document');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('An error occurred while deleting the document');
+                        });
+                    });
+                }
+            }
+            
+            // Skip upload handling if S3 is not available
+            if (!s3Available) {
                 return;
             }
             
-            const fileInput = document.getElementById("file-input");
-            const uploadButton = document.getElementById("upload-button");
-            const uploadPrompt = document.getElementById("upload-prompt");
-            const uploadProgress = document.getElementById("upload-progress");
-            const progressBar = document.getElementById("progress-bar");
-            const uploadStatus = document.getElementById("upload-status");
-            const isPublicCheckbox = document.getElementById("is-public");
+            // Document upload handling (only when S3 is available)
             const uploadArea = document.getElementById('upload-area');
             const fileInput = document.getElementById('file-input');
             const uploadButton = document.getElementById('upload-button');
@@ -168,221 +239,118 @@
             const progressBar = document.getElementById('progress-bar');
             const uploadStatus = document.getElementById('upload-status');
             const isPublicCheckbox = document.getElementById('is-public');
-            const documentsContainer = document.getElementById('documents-container');
-            const ticketId = {{ ticket.id }};
             
-            // Click on upload area to trigger file input
-            uploadArea.addEventListener('click', () => {
+            // Make sure all elements exist
+            if (!uploadArea || !fileInput || !uploadButton || !uploadPrompt || 
+                !uploadProgress || !progressBar || !uploadStatus || !isPublicCheckbox) {
+                console.error('One or more document upload elements are missing');
+                return;
+            }
+            
+            // Set up file input button
+            uploadButton.addEventListener('click', function() {
                 fileInput.click();
             });
             
-            // Handle drag and drop
-            uploadArea.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                uploadArea.classList.add('drag-active');
-            });
-            
-            uploadArea.addEventListener('dragleave', () => {
-                uploadArea.classList.remove('drag-active');
-            });
-            
-            uploadArea.addEventListener('drop', (e) => {
-                e.preventDefault();
-                uploadArea.classList.remove('drag-active');
-                
-                if (e.dataTransfer.files.length) {
-                    fileInput.files = e.dataTransfer.files;
-                }
-            });
-            
             // Handle file selection
-            fileInput.addEventListener('change', () => {
-                if (fileInput.files.length) {
-                    uploadPrompt.textContent = `Selected file: ${fileInput.files[0].name}`;
+            fileInput.addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    uploadFile(this.files[0]);
                 }
             });
             
-            // Handle upload button click
-            uploadButton.addEventListener('click', async () => {
-                if (!fileInput.files.length) {
-                    alert('Please select a file to upload');
-                    return;
-                }
+            // Handle drag and drop
+            uploadArea.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                uploadArea.classList.add('border-primary');
+            });
+            
+            uploadArea.addEventListener('dragleave', function() {
+                uploadArea.classList.remove('border-primary');
+            });
+            
+            uploadArea.addEventListener('drop', function(e) {
+                e.preventDefault();
+                uploadArea.classList.remove('border-primary');
                 
-                const file = fileInput.files[0];
-                
-                // Check file size (16MB max)
-                if (file.size > 16 * 1024 * 1024) {
-                    alert('File is too large. Maximum size is 16MB.');
-                    return;
+                if (e.dataTransfer.files.length > 0) {
+                    uploadFile(e.dataTransfer.files[0]);
                 }
+            });
+            
+            // File upload function
+            function uploadFile(file) {
+                // Show upload progress
+                uploadPrompt.style.display = 'none';
+                uploadProgress.style.display = 'block';
+                progressBar.style.width = '0%';
+                uploadStatus.textContent = 'Uploading...';
                 
                 // Create form data
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('is_public', isPublicCheckbox.checked);
-                formData.append('ticket_id', ticketId);
+                formData.append('ticket_id', {{ ticket.id }});
                 
-                // Show progress
-                uploadPrompt.style.display = 'none';
-                uploadProgress.classList.remove('d-none');
-                uploadButton.disabled = true;
+                // Create and configure XMLHttpRequest
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '/api/documents/upload', true);
                 
-                try {
-                    const xhr = new XMLHttpRequest();
-                    
-                    xhr.upload.addEventListener('progress', (e) => {
-                        if (e.lengthComputable) {
-                            const percentComplete = (e.loaded / e.total) * 100;
-                            progressBar.style.width = percentComplete + '%';
-                            uploadStatus.textContent = `Uploading... ${Math.round(percentComplete)}%`;
-                        }
-                    });
-                    
-                    xhr.onload = function() {
-                        if (xhr.status === 200) {
-                            const response = JSON.parse(xhr.responseText);
-                            uploadStatus.textContent = 'Upload complete!';
-                            
-                            // Add the new document to the list
-                            addDocumentToUI(response);
-                            
-                            // Reset form after 1.5 seconds
-                            setTimeout(() => {
-                                resetUploadForm();
-                            }, 1500);
-                        } else {
-                            uploadStatus.textContent = 'Upload failed!';
-                            progressBar.classList.remove('bg-primary');
-                            progressBar.classList.add('bg-danger');
-                            
-                            setTimeout(() => {
-                                resetUploadForm();
-                            }, 3000);
-                        }
-                    };
-                    
-                    xhr.onerror = function() {
+                // Update progress bar
+                xhr.upload.addEventListener('progress', function(e) {
+                    if (e.lengthComputable) {
+                        const percent = (e.loaded / e.total) * 100;
+                        progressBar.style.width = percent + '%';
+                        uploadStatus.textContent = `Uploading... ${Math.round(percent)}%`;
+                    }
+                });
+                
+                // Handle response
+                xhr.onload = function() {
+                    if (xhr.status === 200) {
+                        uploadStatus.textContent = 'Upload complete!';
+                        progressBar.classList.remove('progress-bar-animated');
+                        
+                        // Refresh the page after a short delay
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 1000);
+                    } else {
                         uploadStatus.textContent = 'Upload failed!';
+                        progressBar.classList.remove('progress-bar-animated');
                         progressBar.classList.remove('bg-primary');
                         progressBar.classList.add('bg-danger');
                         
-                        setTimeout(() => {
-                            resetUploadForm();
+                        // Reset the form after a delay
+                        setTimeout(function() {
+                            uploadPrompt.style.display = 'block';
+                            uploadProgress.style.display = 'none';
+                            progressBar.classList.add('progress-bar-animated');
+                            progressBar.classList.remove('bg-danger');
+                            progressBar.classList.add('bg-primary');
                         }, 3000);
-                    };
-                    
-                    xhr.open('POST', '/api/documents/upload', true);
-                    xhr.send(formData);
-                    
-                } catch (error) {
-                    uploadStatus.textContent = 'Upload failed!';
+                    }
+                };
+                
+                // Handle errors
+                xhr.onerror = function() {
+                    uploadStatus.textContent = 'Upload failed! Network error.';
+                    progressBar.classList.remove('progress-bar-animated');
                     progressBar.classList.remove('bg-primary');
                     progressBar.classList.add('bg-danger');
                     
-                    setTimeout(() => {
-                        resetUploadForm();
+                    setTimeout(function() {
+                        uploadPrompt.style.display = 'block';
+                        uploadProgress.style.display = 'none';
+                        progressBar.classList.add('progress-bar-animated');
+                        progressBar.classList.remove('bg-danger');
+                        progressBar.classList.add('bg-primary');
                     }, 3000);
-                }
-            });
-            
-            // Reset upload form
-            function resetUploadForm() {
-                fileInput.value = '';
-                uploadPrompt.textContent = 'Drag and drop files here, or click to browse';
-                uploadPrompt.style.display = 'block';
-                uploadProgress.classList.add('d-none');
-                progressBar.style.width = '0%';
-                progressBar.classList.add('bg-primary');
-                progressBar.classList.remove('bg-danger');
-                uploadButton.disabled = false;
-                isPublicCheckbox.checked = false;
+                };
+                
+                // Send the request
+                xhr.send(formData);
             }
-            
-            // Add a new document to the UI
-            function addDocumentToUI(document) {
-                // Check if the "no documents" message exists and remove it
-                const noDocsAlert = documentsContainer.querySelector('.alert-info');
-                if (noDocsAlert) {
-                    noDocsAlert.remove();
-                }
-                
-                const col = document.createElement('div');
-                col.className = 'col-md-4 mb-4';
-                col.innerHTML = `
-                    <div class="card document-card h-100">
-                        <div class="card-body">
-                            <h5 class="card-title text-truncate">${document.filename}</h5>
-                            <p class="card-text">
-                                <small class="text-muted">
-                                    ${Math.round(document.size / 1024 * 10) / 10} KB
-                                    <br>
-                                    Uploaded just now
-                                </small>
-                            </p>
-                            <div class="d-flex">
-                                <a href="${document.url}" class="btn btn-outline-primary btn-sm me-2">Download</a>
-                                <button class="btn btn-outline-danger btn-sm delete-document" data-document-id="${document.id}">Delete</button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                
-                documentsContainer.prepend(col);
-                
-                // Add event listener to new delete button
-                const newDeleteBtn = col.querySelector('.delete-document');
-                newDeleteBtn.addEventListener('click', handleDeleteClick);
-            }
-            
-            // Handle document deletion
-            const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
-            let documentToDelete = null;
-            
-            function handleDeleteClick(e) {
-                documentToDelete = e.target.getAttribute('data-document-id');
-                deleteModal.show();
-            }
-            
-            // Add event listeners to all delete buttons
-            document.querySelectorAll('.delete-document').forEach(btn => {
-                btn.addEventListener('click', handleDeleteClick);
-            });
-            
-            // Handle confirm delete button
-            document.getElementById('confirm-delete').addEventListener('click', async () => {
-                if (!documentToDelete) return;
-                
-                try {
-                    const response = await fetch(`/api/documents/${documentToDelete}`, {
-                        method: 'DELETE'
-                    });
-                    
-                    if (response.ok) {
-                        // Find and remove the document from the UI
-                        const docElement = document.querySelector(`[data-document-id="${documentToDelete}"]`).closest('.col-md-4');
-                        docElement.remove();
-                        
-                        // If no documents left, show the "no documents" message
-                        if (documentsContainer.children.length === 0) {
-                            documentsContainer.innerHTML = `
-                                <div class="col-12">
-                                    <div class="alert alert-info">
-                                        No documents found for this ticket. Use the upload form above to add some.
-                                    </div>
-                                </div>
-                            `;
-                        }
-                        
-                        deleteModal.hide();
-                    } else {
-                        alert('Failed to delete document');
-                    }
-                } catch (error) {
-                    alert('An error occurred while deleting the document');
-                }
-            });
         });
     </script>
-</body>
-</html>
+{% endblock %}
