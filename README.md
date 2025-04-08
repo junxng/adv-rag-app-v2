@@ -97,7 +97,7 @@ adv-rag-app-v2/
 
 ## Prerequisites
 
-- Python 3.11+
+- Python 3.12+
 - Node.js 18+
 - uv (Python package manager)
 - Pinecone account
