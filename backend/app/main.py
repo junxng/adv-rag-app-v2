@@ -14,8 +14,10 @@ from dotenv import load_dotenv
 # Load environment variables from .env file in the backend directory
 load_dotenv(dotenv_path="../backend/.env")
 
-from .database import engine, Base, get_db
-from . import models, schemas, services
+from .db.base import engine, Base, get_db
+from .db import models
+from . import schemas
+from .services import monitoring_service
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -193,7 +195,7 @@ async def chat(chat_request: schemas.ChatRequest, request: Request):
         # Import components
         from .query_classifier import classify_query
         from .data_sources import query_sql_database, search_tavily, retrieve_from_vectordb
-        from .monitoring import log_interaction
+        # Use the monitoring service for logging interactions
 
         # Classify query
         query_type = classify_query(user_message, chat_history)
@@ -219,7 +221,13 @@ async def chat(chat_request: schemas.ChatRequest, request: Request):
         session["chat_history"] = chat_history
 
         # Log interaction for monitoring
-        log_interaction(user_message, response, query_type, source)
+        monitoring_service.log_chat_interaction(
+            user_message=user_message,
+            bot_response=response,
+            query_type=query_type,
+            data_source=source,
+            session_id=session.get("session_id")
+        )
 
         return schemas.ChatResponse(message=response, source=source)
 
@@ -254,8 +262,7 @@ async def get_stats():
     This endpoint requires admin authentication in a production environment.
     """
     try:
-        from .monitoring import get_monitoring_stats
-        stats = get_monitoring_stats()
+        stats = monitoring_service.get_monitoring_stats()
         return stats
     except Exception as e:
         logger.error(f"Error getting stats: {str(e)}")
@@ -271,12 +278,14 @@ async def admin_dashboard(request: Request):
     return templates.TemplateResponse("admin_dashboard.html", {"request": request})
 
 @app.post("/api/feedback")
-async def submit_feedback(feedback: schemas.FeedbackRequest):
+async def submit_feedback(feedback: schemas.FeedbackRequest, request: Request):
     """
     Submit user feedback on chatbot responses.
     This feedback is used to improve classification accuracy and retrieval effectiveness.
     """
     try:
+        # Get session
+        session = request.session
         user_message = feedback.user_message
         bot_response = feedback.bot_response
         feedback_rating = feedback.rating
@@ -290,20 +299,19 @@ async def submit_feedback(feedback: schemas.FeedbackRequest):
         db = next(get_db())
         try:
             # Create feedback entry
-            from .monitoring import log_feedback
-            log_feedback(
-                user_message=user_message,
-                bot_response=bot_response,
-                rating=feedback_rating,
-                correct_type=correct_type,
-                comments=comments
+            # Use monitoring service for feedback
+            monitoring_service.log_feedback(
+                trace_id=session.get('trace_id', 'unknown'),
+                score=float(feedback_rating) / 5.0,  # Convert to 0-1 scale
+                comment=comments,
+                name="user_feedback"
             )
 
             # If user indicated the correct classification type, use it to improve the classifier
             if correct_type:
-                from .monitoring import log_classification_correction
-                log_classification_correction(
+                monitoring_service.log_classification(
                     user_message=user_message,
+                    predicted_type="unknown",  # We don't know the predicted type here
                     correct_type=correct_type
                 )
 

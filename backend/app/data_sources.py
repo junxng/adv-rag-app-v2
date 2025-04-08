@@ -4,9 +4,9 @@ import json
 import requests
 from sqlalchemy import text
 from openai import OpenAI
-from app_fastapi import SessionLocal
-from models import User, SupportTicket
-from vector_store import query_vector_store
+from .db.base import SessionLocal
+from .db.models import User, SupportTicket
+from .vector_store import query_vector_store
 
 # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
 # do not change this unless explicitly requested by the user
@@ -47,7 +47,7 @@ def query_sql_database(question, user_id, chat_history=None):
 
         if aws_access_key and aws_secret_key:
             # Import here to avoid circular imports
-            from aws_services import DynamoDBService
+            from .aws_services import DynamoDBService
 
             # Use DynamoDB
             dynamodb = DynamoDBService()
@@ -416,8 +416,8 @@ def retrieve_from_vectordb(question, chat_history=None):
 
         # Log retrieval effectiveness for monitoring
         try:
-            from monitoring import log_retrieval_effectiveness
-            log_retrieval_effectiveness(
+            from .services.monitoring_service import monitoring_service
+            monitoring_service.log_retrieval(
                 query=question,
                 retrieved_docs=relevant_docs,
                 relevance_score=relevance_score

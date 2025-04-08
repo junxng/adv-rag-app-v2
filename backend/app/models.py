@@ -1,7 +1,7 @@
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
-from app_fastapi import Base
+from .db.base import Base
 
 class User(Base):
     __tablename__ = 'user'
@@ -87,7 +87,7 @@ class Document(Base):
             # S3 storage is not available
             return None
 
-        from aws_services import S3Service
+        from .aws_services import S3Service
 
         s3_service = S3Service()
         return s3_service.get_file_url(self.s3_bucket, self.s3_key, expiration)

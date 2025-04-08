@@ -28,7 +28,7 @@ else:
 def get_langchain_classifier():
     """
     Creates and returns a LangChain classifier for query categorization.
-    
+
     Returns:
         tuple: LangChain model and output parser
     """
@@ -39,51 +39,51 @@ def get_langchain_classifier():
         type="string",
         enum=["account", "troubleshooting", "knowledge"]
     )
-    
+
     confidence_schema = ResponseSchema(
         name="confidence",
         description="Confidence score between 0 and 1",
         type="number"
     )
-    
+
     explanation_schema = ResponseSchema(
         name="explanation",
         description="Brief explanation of why this category was chosen",
         type="string"
     )
-    
+
     # Create the output parser
     output_parser = StructuredOutputParser.from_response_schemas([
         category_schema, confidence_schema, explanation_schema
     ])
-    
+
     # Get the format instructions
     format_instructions = output_parser.get_format_instructions()
-    
+
     # Create the prompt template
     prompt_template = ChatPromptTemplate.from_template("""
     You are a query classifier for a technical support system.
-    
+
     Classify the following user query into ONE of these categories:
     - account: Related to user account, support tickets, personal data (e.g. "What's my ticket status?")
     - troubleshooting: Technical issues requiring external information (e.g. "How do I fix a slow laptop?")
     - knowledge: Company policies, procedures, internal information (e.g. "What is our remote work policy?")
-    
+
     Previous conversation context (if any):
     {context}
-    
+
     User query: {query}
-    
+
     {format_instructions}
     """)
-    
+
     # Create the LLM
     llm = ChatOpenAI(
         model="gpt-4o",
         temperature=0.3,
         api_key=OPENAI_API_KEY
     )
-    
+
     return prompt_template, llm, output_parser
 
 def classify_query(query, chat_history=None):
@@ -92,11 +92,11 @@ def classify_query(query, chat_history=None):
     - account: Related to user account, support tickets, personal data
     - troubleshooting: Technical issues requiring external information
     - knowledge: Company policies, procedures, internal information
-    
+
     Args:
         query (str): The user's query text
         chat_history (list): List of previous messages in the conversation
-    
+
     Returns:
         str: The query type (account, troubleshooting, knowledge)
     """
@@ -109,61 +109,61 @@ def classify_query(query, chat_history=None):
             context = "\n".join([
                 f"{msg['role']}: {msg['content']}" for msg in recent_history
             ])
-        
+
         # Get the LangChain classifier components
         prompt_template, llm, output_parser = get_langchain_classifier()
-        
+
         # Format the prompt with our data
         prompt = prompt_template.format(query=query, context=context)
-        
+
         try:
             # Try the LangChain classification first
             response = llm.invoke(prompt)
             parsed_output = output_parser.parse(response.content)
-            
+
             category = parsed_output.get("category", "knowledge")
             confidence = parsed_output.get("confidence", 0)
             explanation = parsed_output.get("explanation", "")
-            
+
             logger.debug(f"LangChain classification: {category} (confidence: {confidence})")
             logger.debug(f"Explanation: {explanation}")
-            
+
             # Log classification data for monitoring (if monitoring module is available)
             try:
-                from monitoring import log_classification_accuracy
-                log_classification_accuracy(
+                from .services.monitoring_service import monitoring_service
+                monitoring_service.log_classification(
                     user_message=query,
                     predicted_type=category,
                     confidence=confidence
                 )
             except Exception as monitoring_error:
                 logger.warning(f"Failed to log classification accuracy: {str(monitoring_error)}")
-            
+
             return category
-            
+
         except Exception as lc_error:
             # Fall back to direct OpenAI API call if LangChain fails
             logger.warning(f"LangChain classification failed: {str(lc_error)}. Falling back to direct API.")
-            
+
             # Create the classification prompt for direct API
             classification_prompt = f"""
             Classify the following user query into ONE of these categories:
             - account: Related to user account, support tickets, personal data (e.g. "What's my ticket status?")
             - troubleshooting: Technical issues requiring external information (e.g. "How do I fix a slow laptop?")
             - knowledge: Company policies, procedures, internal information (e.g. "What is our remote work policy?")
-            
+
             {context}
-            
+
             User query: {query}
-            
+
             Respond with a JSON object with a single key 'category' and the value as one of the three options: 'account', 'troubleshooting', or 'knowledge'.
             """
-            
+
             # Check if OpenAI client is available
             if openai is None:
                 logger.error("OpenAI client not initialized, cannot use fallback")
                 return "knowledge"  # Default to knowledge if OpenAI not available
-                
+
             try:
                 # Call the OpenAI API directly
                 response = openai.chat.completions.create(
@@ -172,29 +172,29 @@ def classify_query(query, chat_history=None):
                     response_format={"type": "json_object"},
                     temperature=0.3
                 )
-                
+
                 # Extract and return the category
                 result = json.loads(response.choices[0].message.content)
                 category = result.get("category", "knowledge")
             except Exception as openai_error:
                 logger.error(f"Error calling OpenAI API: {str(openai_error)}")
                 return "knowledge"  # Default to knowledge if API call fails
-            
+
             logger.debug(f"Fallback classification: {category}")
-            
+
             # Log classification data for monitoring (if monitoring module is available)
             try:
-                from monitoring import log_classification_accuracy
-                log_classification_accuracy(
+                from .services.monitoring_service import monitoring_service
+                monitoring_service.log_classification(
                     user_message=query,
                     predicted_type=category,
                     confidence=None  # No confidence score from direct API call
                 )
             except Exception as monitoring_error:
                 logger.warning(f"Failed to log classification accuracy: {str(monitoring_error)}")
-            
+
             return category
-        
+
     except Exception as e:
         logger.error(f"Error in query classification: {str(e)}")
         # Default to knowledge base if classification fails

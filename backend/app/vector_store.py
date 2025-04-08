@@ -124,7 +124,7 @@ def initialize_faiss_vector_store():
 
     try:
         # Get database session
-        from .database import SessionLocal
+        from .db.base import SessionLocal
         db = SessionLocal()
 
         try:
