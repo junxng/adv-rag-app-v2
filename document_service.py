@@ -2,6 +2,8 @@ import os
 import io
 import uuid
 import logging
+import boto3
+import botocore
 from werkzeug.utils import secure_filename
 from aws_services import S3Service
 from models import Document, db
